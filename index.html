@@ -1,0 +1,60 @@
+<!DOCTYPE html>
+<html lang="en">
+
+<head>
+  <meta charset="UTF-8">
+  <meta http-equiv="X-UA-Compatible" content="IE=edge">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Document</title>
+</head>
+
+<body>
+  <div id="app">
+    <!-- <h2>{{name}}</h2>
+    <span>{{age}}</span> -->
+  </div>
+  <script src="./dist/vue.js"></script>
+  <script>
+    // 
+    const app = new Vue({
+      // data 可以是对象 也可以是函数
+      data() {
+        return {
+          name: "vue2",
+          age: 2015,
+          address: {
+            name: "河南省"
+          },
+          hobbies: ["海贼王", "火影忍者", {
+            name: "名侦探柯南"
+          }],
+          backgroundColor: "skyblue"
+        }
+      },
+      // 挂载的dom元素
+      el: "#app",
+      template: `
+      <div id="app" style="color:red;background-color:{{backgroundColor}};" abc a=b>
+        我是普通文本div
+        <h2 key="hh">{{name}} --- {{age}}---</h2>
+        <br/>
+        <span class="span1">{{age}}</span>
+      </div>
+      `
+    });
+    console.log("app------------>", app)
+    // 更新数据 期望视图刷新
+    setTimeout(()=>{
+      app.name = "vue2 ..."
+      // 手动更新
+      app._update(app._render())
+    },1111)
+    // 模板引擎 性能差 需要正则匹配 替换 vue1.0 没有引入虚拟dom的改变
+    // vue2 采用虚拟dom 数据变化后比较虚拟dom的差异 最后更新需要更新的地方
+    // 核心就是我们需要将模板变成我们的js语法 通过js语法生成虚拟dom
+    // 语法之间的转换 需要先变成抽象语法树AST 再组装为新的语法
+    // 这里就是把template语法转为render函数
+  </script>
+</body>
+
+</html>
