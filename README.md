@@ -308,3 +308,15 @@ if (Promise) {
 当然：对于更改值放在取值的下面，那么获取到的肯定还是旧的dom值。vue也是如此的。
 
 ![image-20220415150347883](https://gitee.com/maolovecoding/picture/raw/master/images/web/webpack/image-20220415150347883.png)
+
+### mixin的实现
+
+Vue的mixin，可以实现全局混入和局部混入。
+
+全局混入对所有组件实例都生效。
+
+**暂时我实现了生命周期的混入，对于data等其他特殊选项的合并还未处理。**
+
+对于混入的生命周期，无论是一个还是多个相同的生命周期，最终我们都转为使用数组包裹，每个数组元素都是混入进来的生命周期。在创建组件实例的时候，把传入的选项和全局的Vue.options选项进行合并到实例上，实现混入效果。
+
+![image-20220415220542253](https://gitee.com/maolovecoding/picture/raw/master/images/web/webpack/image-20220415220542253.png)

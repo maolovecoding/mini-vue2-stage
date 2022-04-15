@@ -129,6 +129,98 @@
     throw new TypeError("Invalid attempt to destructure non-iterable instance.\nIn order to be iterable, non-array objects must have a [Symbol.iterator]() method.");
   }
 
+  /*
+   * @Author: 毛毛 
+   * @Date: 2022-04-15 20:52:34 
+   * @Last Modified by:   毛毛 
+   * @Last Modified time: 2022-04-15 20:52:34 
+   * 导出mixin时用到的一些策略模式
+   */
+  // 策略模式
+  var strategy = {}; // 生命周期
+
+  var LIFE_CYCLE = ["beforeCreate", "created", "beforeMount", "mounted", "beforeUpdate", "update"];
+  LIFE_CYCLE.forEach(function (hook) {
+    strategy[hook] = function (s1, s2) {
+      if (s2) {
+        if (s1) {
+          // 合并选项
+          // return s1.concat(s2);
+          return [].concat(_toConsumableArray(s1), [s2]);
+        } else {
+          // 全局options没有 用户传递的有 变成数组
+          return [s2];
+        }
+      } else {
+        return s1;
+      }
+    };
+  });
+
+  /*
+   * @Author: 毛毛
+   * @Date: 2022-04-15 20:43:57
+   * @Last Modified by: 毛毛
+   * @Last Modified time: 2022-04-15 21:37:02
+   * 合并对象的方法
+   */
+  function mergeOptions() {
+    var opts = {};
+
+    for (var _len = arguments.length, options = new Array(_len), _key = 0; _key < _len; _key++) {
+      options[_key] = arguments[_key];
+    }
+
+    var source1 = options[0],
+        source2 = options[1];
+
+    for (var key in source1) {
+      mergeField(key);
+    }
+
+    for (var _key2 in source2) {
+      if (!source1.hasOwnProperty(_key2)) {
+        mergeField(_key2);
+      }
+    }
+
+    function mergeField(key) {
+      // 策略模式 减少 if / else
+      if (strategy[key]) {
+        opts[key] = strategy[key](source1[key], source2[key]);
+      } // 优先采用用户的选项 再采用全局已存在的
+      else opts[key] = source2[key] === void 0 ? source1[key] : source2[key];
+    }
+
+    if (options.length > 2) {
+      options.splice(0, 2);
+      return mergeOptions.apply(void 0, [opts].concat(options));
+    }
+
+    return opts;
+  }
+
+  /*
+   * @Author: 毛毛
+   * @Date: 2022-04-15 20:40:36
+   * @Last Modified by: 毛毛
+   * @Last Modified time: 2022-04-15 20:51:17
+   * 全局静态 api
+   */
+
+  function initGlobalStaticAPI(Vue) {
+    Vue.options = {}; // 全局选项
+    // 混入
+
+    Vue.mixin = function mixin(mixin) {
+      // 我们期望将用户的选项和全局的options进行合并
+      // {} + mixin {created(){}} => {created:[fn]}
+      this.options = mergeOptions(Vue.options, mixin); // console.log(this.options);
+
+      return this;
+    };
+  }
+
   /**
    * 是否是函数
    * @param {*} source 对象
@@ -205,7 +297,7 @@
    * @Author: 毛毛
    * @Date: 2022-04-15 09:31:54
    * @Last Modified by: 毛毛
-   * @Last Modified time: 2022-04-15 10:41:29
+   * @Last Modified time: 2022-04-15 21:15:14
    * 依赖收集 dep
    */
   var id$1 = 0;
@@ -242,8 +334,7 @@
     }, {
       key: "addSub",
       value: function addSub(watcher) {
-        this.subs.push(watcher);
-        console.log(watcher);
+        this.subs.push(watcher); // console.log(watcher);
       }
       /**
        * 更新视图
@@ -684,8 +775,8 @@
   function compileToFunction(template) {
     // console.log("compileToFunction-------------->" + template + "---------");
     // 1. template 转 ast
-    var ast = parseHTML(template);
-    console.log(ast); // 2. 生成render方法（该方法的执行结果是返回虚拟dom）
+    var ast = parseHTML(template); // console.log(ast);
+    // 2. 生成render方法（该方法的执行结果是返回虚拟dom）
     // TODO 三个方法 _v文本节点 _s把变量转为字符串 _c元素节点
     // 2.1 生成render函数的返回代码块字符串形式
 
@@ -1311,9 +1402,24 @@
 
   /*
    * @Author: 毛毛
+   * @Date: 2022-04-15 21:16:58
+   * @Last Modified by: 毛毛
+   * @Last Modified time: 2022-04-15 21:20:16
+   * 执行生命周期的hook
+   */
+  function callHook(vm, hook) {
+    var handles = vm.$options[hook]; // 生命周期的钩子的this 都是当前实例
+
+    handles === null || handles === void 0 ? void 0 : handles.forEach(function (handle) {
+      return handle.call(vm);
+    });
+  }
+
+  /*
+   * @Author: 毛毛
    * @Date: 2022-04-12 22:48:39
    * @Last Modified by: 毛毛
-   * @Last Modified time: 2022-04-14 14:11:45
+   * @Last Modified time: 2022-04-15 21:21:43
    */
   function initMixin(Vue) {
     /**
@@ -1323,11 +1429,18 @@
     Vue.prototype._init = function _init(options) {
       // console.log("init------------>", options);
       // vue app.$options = options 获取用户配置
-      var vm = this;
-      vm.$options = options; // vue认为 $xxx 就是表示vue的属性
-      // 初始化状态
+      var vm = this; // 合并 Vue.options 和 传入的配置项
+      // TODO 目前还只是可以合并生命周期和普通属性等，对于 data 这种选项还需要特殊的合并处理
 
-      initState(vm); // TODO 编译模板 等...
+      vm.$options = mergeOptions(this.constructor.options, options); // vue认为 $xxx 就是表示vue的属性
+
+      console.log(vm.$options); // 执行初始化之前，执行 beforeCreate 的钩子
+
+      callHook(vm, "beforeCreate"); // 初始化状态
+
+      initState(vm); // 状态初始化完毕之后，执行 created 钩子
+
+      callHook(vm, "created"); // TODO 编译模板 等...
       // el vm挂载到的dom容器
 
       if (options.el) vm.$mount(options.el);
@@ -1372,7 +1485,7 @@
    * @Author: 毛毛
    * @Date: 2022-04-12 22:45:40
    * @Last Modified by: 毛毛
-   * @Last Modified time: 2022-04-14 14:21:19
+   * @Last Modified time: 2022-04-15 20:42:57
    */
   /**
    * Vue构造函数
@@ -1382,12 +1495,16 @@
   function Vue(options) {
     // 初始化
     this._init(options);
-  }
+  } // TODO 暂时先这样写
+
 
   Vue.prototype.$nextTick = nextTick;
   initMixin(Vue); // 扩展_init方法
 
   initLifeCycle(Vue); // 拓展生命周期 进行组件的挂载和渲染的方法
+  // 静态方法
+
+  initGlobalStaticAPI(Vue);
 
   return Vue;
 

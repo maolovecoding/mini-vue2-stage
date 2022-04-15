@@ -9,27 +9,38 @@
 </head>
 
 <body>
-  <div id="app">
-    <!-- <h2>{{name}}</h2>
-    <span>{{age}}</span> -->
-  </div>
-  <script src="./dist/vue.js"></script>
+  <div id="app"></div>
+  <script src="../dist/vue.js"></script>
   <script>
     // Vue.mixin 混合 可以混入一些公共方法 这是全局混入
+    /*
+    发布订阅模式
+    */
+    Vue.mixin({
+      created() {
+        console.log("created------------1")
+      },
+    });
+    Vue.mixin({
+      created() {
+        console.log("created------------2")
+      },
+      mounted() {
+        console.log("mounted------------1")
+      },
+    });
+    console.log(Vue.options)
     const app = new Vue({
       // data 可以是对象 也可以是函数
       data() {
         return {
           name: "vue2",
           age: 2015,
-          address: {
-            name: "河南省"
-          },
-          hobbies: ["海贼王", "火影忍者", {
-            name: "名侦探柯南"
-          }],
           backgroundColor: "skyblue"
         }
+      },
+      beforeCreate() {
+        console.log("beforeCreate------------1")
       },
       // 挂载的dom元素
       el: "#app",
@@ -44,18 +55,6 @@
       // 混入 mixin 这里混入将是局部
       // mixins:[]
     });
-    // console.log("app------------>", app)
-    app.name = "vue2......";
-    app.$nextTick(() => {
-      const h2 = document.querySelector("#h2")
-      console.log(h2.innerHTML);
-    })
-    
-    // 模板引擎 性能差 需要正则匹配 替换 vue1.0 没有引入虚拟dom的改变
-    // vue2 采用虚拟dom 数据变化后比较虚拟dom的差异 最后更新需要更新的地方
-    // 核心就是我们需要将模板变成我们的js语法 通过js语法生成虚拟dom
-    // 语法之间的转换 需要先变成抽象语法树AST 再组装为新的语法
-    // 这里就是把template语法转为render函数
   </script>
 </body>
 

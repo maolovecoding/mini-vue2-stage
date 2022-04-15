@@ -2,11 +2,13 @@
  * @Author: 毛毛
  * @Date: 2022-04-12 22:48:39
  * @Last Modified by: 毛毛
- * @Last Modified time: 2022-04-14 14:11:45
+ * @Last Modified time: 2022-04-15 21:21:43
  */
 import { initState } from "./initState";
 import { compileToFunction } from "./compiler";
 import { mountComponent } from "./lifecycle";
+import { mergeOptions } from "./utils/merge";
+import { callHook } from "./hooks/life-hook";
 export function initMixin(Vue) {
   /**
    * 初始化操作
@@ -16,9 +18,16 @@ export function initMixin(Vue) {
     // console.log("init------------>", options);
     // vue app.$options = options 获取用户配置
     const vm = this;
-    vm.$options = options; // vue认为 $xxx 就是表示vue的属性
+    // 合并 Vue.options 和 传入的配置项
+    // TODO 目前还只是可以合并生命周期和普通属性等，对于 data 这种选项还需要特殊的合并处理
+    vm.$options = mergeOptions(this.constructor.options, options); // vue认为 $xxx 就是表示vue的属性
+    console.log(vm.$options);
+    // 执行初始化之前，执行 beforeCreate 的钩子
+    callHook(vm, "beforeCreate");
     // 初始化状态
     initState(vm);
+    // 状态初始化完毕之后，执行 created 钩子
+    callHook(vm, "created");
     // TODO 编译模板 等...
     // el vm挂载到的dom容器
     if (options.el) vm.$mount(options.el);

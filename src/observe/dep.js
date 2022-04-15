@@ -2,7 +2,7 @@
  * @Author: 毛毛
  * @Date: 2022-04-15 09:31:54
  * @Last Modified by: 毛毛
- * @Last Modified time: 2022-04-15 10:41:29
+ * @Last Modified time: 2022-04-15 21:15:14
  * 依赖收集 dep
  */
 let id = 0;
@@ -29,7 +29,7 @@ class Dep {
    */
   addSub(watcher) {
     this.subs.push(watcher);
-    console.log(watcher);
+    // console.log(watcher);
   }
   /**
    * 更新视图

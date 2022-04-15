@@ -2,7 +2,7 @@
  * @Author: 毛毛
  * @Date: 2022-04-14 12:35:12
  * @Last Modified by: 毛毛
- * @Last Modified time: 2022-04-15 09:29:34
+ * @Last Modified time: 2022-04-15 21:15:39
  * @Description 模板编译
  * 模板引擎实现原理： with + new Function
  */
@@ -18,7 +18,7 @@ export function compileToFunction(template) {
   // console.log("compileToFunction-------------->" + template + "---------");
   // 1. template 转 ast
   const ast = parseHTML(template);
-  console.log(ast);
+  // console.log(ast);
   // 2. 生成render方法（该方法的执行结果是返回虚拟dom）
   // TODO 三个方法 _v文本节点 _s把变量转为字符串 _c元素节点
   // 2.1 生成render函数的返回代码块字符串形式
