@@ -2,7 +2,7 @@
  * @Author: 毛毛
  * @Date: 2022-04-14 12:35:12
  * @Last Modified by: 毛毛
- * @Last Modified time: 2022-04-14 20:26:22
+ * @Last Modified time: 2022-04-15 09:29:34
  * @Description 模板编译
  * 模板引擎实现原理： with + new Function
  */
@@ -67,7 +67,7 @@ function generateProps(attrs) {
         } else value = `'${value}'`;
         // style[key] = value;
         style += `'${key}':${value},`;
-        console.log(style);
+        // console.log(style);
       });
       str += `${attr.name}:{${style.slice(0, -1)}},`;
     } else str += `${attr.name}:${JSON.stringify(attr.value)},`;
@@ -122,7 +122,7 @@ function generateChild(node) {
       if (lastIndex < text.length) {
         tokens.push(JSON.stringify(text.slice(lastIndex)));
       }
-      console.log(tokens);
+      // console.log(tokens);
       return `_v(${tokens.join("+")})`;
     default:
       return "";

@@ -42,13 +42,13 @@
       </div>
       `
     });
-    console.log("app------------>", app)
+    // console.log("app------------>", app)
     // 更新数据 期望视图刷新
-    setTimeout(()=>{
-      app.name = "vue2 ..."
-      // 手动更新
-      app._update(app._render())
-    },1111)
+    // setTimeout(()=>{
+    //   app.name = "vue2 ..."
+    //   // 手动更新
+    //   app._update(app._render())
+    // },1111)
     // 模板引擎 性能差 需要正则匹配 替换 vue1.0 没有引入虚拟dom的改变
     // vue2 采用虚拟dom 数据变化后比较虚拟dom的差异 最后更新需要更新的地方
     // 核心就是我们需要将模板变成我们的js语法 通过js语法生成虚拟dom

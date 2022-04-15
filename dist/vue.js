@@ -39,6 +39,21 @@
     return Constructor;
   }
 
+  function _defineProperty(obj, key, value) {
+    if (key in obj) {
+      Object.defineProperty(obj, key, {
+        value: value,
+        enumerable: true,
+        configurable: true,
+        writable: true
+      });
+    } else {
+      obj[key] = value;
+    }
+
+    return obj;
+  }
+
   function _slicedToArray(arr, i) {
     return _arrayWithHoles(arr) || _iterableToArrayLimit(arr, i) || _unsupportedIterableToArray(arr, i) || _nonIterableRest();
   }
@@ -170,6 +185,69 @@
     };
   });
 
+  /*
+   * @Author: 毛毛
+   * @Date: 2022-04-15 09:31:54
+   * @Last Modified by: 毛毛
+   * @Last Modified time: 2022-04-15 10:41:29
+   * 依赖收集 dep
+   */
+  var id$1 = 0;
+
+  var Dep = /*#__PURE__*/function () {
+    function Dep() {
+      _classCallCheck(this, Dep);
+
+      _defineProperty(this, "id", id$1++);
+
+      // 属性的dep要收集watcher
+      this.subs = [];
+    }
+    /**
+     * 收集当前属性 对应的视图 watcher
+     */
+
+
+    _createClass(Dep, [{
+      key: "depend",
+      value: function depend() {
+        // 这里我们不希望收集重复的watcher，而且现在还只是单向的关系 dep -> watcher
+        // watcher 也需要记录 dep
+        // this.subs.push(Dep.target);
+        // console.log(this.subs);
+        // 这里是让watcher先记住dep
+        Dep.target.addDep(this); //  this -> dep
+      }
+      /**
+       * dep 在反过来记录watcher
+       * @param {*} watcher
+       */
+
+    }, {
+      key: "addSub",
+      value: function addSub(watcher) {
+        this.subs.push(watcher);
+        console.log(watcher);
+      }
+      /**
+       * 更新视图
+       */
+
+    }, {
+      key: "notify",
+      value: function notify() {
+        this.subs.forEach(function (watcher) {
+          return watcher.update();
+        });
+      } // 当前的watcher
+
+    }]);
+
+    return Dep;
+  }();
+
+  _defineProperty(Dep, "target", null);
+
   var Observe = /*#__PURE__*/function () {
     function Observe(data) {
       _classCallCheck(this, Observe);
@@ -229,16 +307,26 @@
 
   function defineReactive(obj, key, value) {
     // 如果属性也是对象 再次劫持
-    observe(value);
+    observe(value); // 每个属性都有一个dep
+
+    var dep = new Dep();
     Object.defineProperty(obj, key, {
       get: function get() {
+        // 判断 Dep.target
+        if (Dep.target) {
+          // 当前属性 记住这个watcher 也就是视图依赖的收集
+          dep.depend();
+        }
+
         return value;
       },
       set: function set(newVal) {
         if (newVal === value) return; // 新值是对象 则需要重新观测
 
         observe(newVal);
-        value = newVal;
+        value = newVal; // 更新数据 通知视图更新
+
+        dep.notify();
       }
     });
   }
@@ -619,33 +707,30 @@
       var attr = attrs[i];
 
       if (attr.name === "style") {
-        (function () {
-          // style:"color:red;background-color:{{backgroundColor}}"
-          // style:{color:"red","background-color":"{{backgroundColor}}"}
-          var style = ""; // const style = {};
+        // style:"color:red;background-color:{{backgroundColor}}"
+        // style:{color:"red","background-color":"{{backgroundColor}}"}
+        var style = ""; // const style = {};
 
-          attr.value.split(";").forEach(function (item) {
-            if (!item.trim()) return;
+        attr.value.split(";").forEach(function (item) {
+          if (!item.trim()) return;
 
-            var _item$split = item.split(":"),
-                _item$split2 = _slicedToArray(_item$split, 2),
-                key = _item$split2[0],
-                value = _item$split2[1];
+          var _item$split = item.split(":"),
+              _item$split2 = _slicedToArray(_item$split, 2),
+              key = _item$split2[0],
+              value = _item$split2[1];
 
-            var match = null; // defaultTagRE.lastIndex = 0;
+          var match = null; // defaultTagRE.lastIndex = 0;
 
-            match = defaultTagRE.exec(value);
+          match = defaultTagRE.exec(value);
 
-            if (match) {
-              value = "_s(".concat(match[1], ")");
-            } else value = "'".concat(value, "'"); // style[key] = value;
+          if (match) {
+            value = "_s(".concat(match[1], ")");
+          } else value = "'".concat(value, "'"); // style[key] = value;
 
 
-            style += "'".concat(key, "':").concat(value, ",");
-            console.log(style);
-          });
-          str += "".concat(attr.name, ":{").concat(style.slice(0, -1), "},");
-        })();
+          style += "'".concat(key, "':").concat(value, ","); // console.log(style);
+        });
+        str += "".concat(attr.name, ":{").concat(style.slice(0, -1), "},");
       } else str += "".concat(attr.name, ":").concat(JSON.stringify(attr.value), ",");
     }
 
@@ -708,9 +793,9 @@
 
         if (lastIndex < text.length) {
           tokens.push(JSON.stringify(text.slice(lastIndex)));
-        }
+        } // console.log(tokens);
 
-        console.log(tokens);
+
         return "_v(".concat(tokens.join("+"), ")");
 
       default:
@@ -722,7 +807,7 @@
    * @Author: 毛毛
    * @Date: 2022-04-14 14:35:48
    * @Last Modified by: 毛毛
-   * @Last Modified time: 2022-04-14 14:56:38
+   * @Last Modified time: 2022-04-15 08:45:32
    * 虚拟dom 需要的方法
    */
 
@@ -770,9 +855,104 @@
 
   /*
    * @Author: 毛毛
+   * @Date: 2022-04-15 09:09:45
+   * @Last Modified by: 毛毛
+   * @Last Modified time: 2022-04-15 10:46:29
+   * 封装视图的渲染逻辑 watcher
+   */
+
+  var id = 0;
+  /**
+   * watcher 进行实际的视图渲染
+   * 每个组件都有自己的watcher，可以减少每次更新页面的部分
+   * 给每个属性都增加一个dep，目的就是收集watcher
+   * 一个视图（组件）可能有很多属性，多个属性对应一个视图 n个dep对应1个watcher
+   * 一个属性也可能对应多个视图（组件）
+   * 所以 dep 和 watcher 是多对多关系
+   * 
+   * 每个属性都有自己的dep，属性就是被观察者
+   * watcher就是观察者（属性变化了会通知观察者进行视图更新）-> 观察者模式
+   */
+
+  var Watcher = /*#__PURE__*/function () {
+    // 目前只有一个watcher实例 因为我只有一个实例 根组件
+
+    /**
+     *
+     * @param {*} vm 组件实例
+     * @param {*} updateComponent 渲染页面的回调函数
+     * @param {boolean} options 是否是初渲染
+     */
+    function Watcher(vm, updateComponent, options) {
+      _classCallCheck(this, Watcher);
+
+      _defineProperty(this, "id", id++);
+
+      this.renderWatcher = options; // 调用这个函数 意味着可以发生取值操作
+
+      this.getter = updateComponent; // 收集 dep   watcher -> deps
+
+      this.deps = []; // 在组件卸载的时候，清理响应式数据使用 还有实现响应式数据等都需要使用到
+
+      this.depsId = new Set(); // dep id
+      // 初渲染
+
+      this.get();
+    }
+
+    _createClass(Watcher, [{
+      key: "get",
+      value: function get() {
+        /**
+         * 1.当我们创建渲染watcher的时候 会把当前的渲染watcher放到Dep.target上
+         * 2.调用_render()取值 走到值的get上
+         */
+        Dep.target = this; // 去 vm上取值
+
+        this.getter(); // 渲染完毕后清空
+
+        Dep.target = null;
+      }
+      /**
+       * 一个组件对应多个属性 但是重复的属性 也不需要记录
+       * 比如在组件视图中 用到了多次的name属性，那么需要记录每次用到name的watcher吗
+       * @param {*} dep
+       */
+
+    }, {
+      key: "addDep",
+      value: function addDep(dep) {
+        // dep去重 可以用到 dep.id
+        var id = dep.id;
+
+        if (!this.depsId.has(id)) {
+          // watcher记录dep
+          this.deps.push(dep);
+          this.depsId.add(id); // dep记录watcher
+
+          dep.addSub(this);
+        }
+      }
+      /**
+       * 更新视图 本质重新执行 render函数
+       */
+
+    }, {
+      key: "update",
+      value: function update() {
+        this.get();
+        console.log("update watcher.................");
+      }
+    }]);
+
+    return Watcher;
+  }();
+
+  /*
+   * @Author: 毛毛
    * @Date: 2022-04-14 14:10:39
    * @Last Modified by: 毛毛
-   * @Last Modified time: 2022-04-14 20:42:46
+   * @Last Modified time: 2022-04-15 10:15:07
    * 组件挂载 生命周期
    * vm._render() 生成虚拟节点 vNode
    * vm._update() 虚拟节点变成真实节点 dom
@@ -783,13 +963,21 @@
     Object.defineProperty(vm, "$el", {
       value: container,
       writable: true
-    }); // 1.调用render 产生虚拟节点 vNode
+    }); // 这里把渲染逻辑封装到watcher中
 
-    var vNodes = vm._render(); // 2. 根据虚拟dom 产生真实dom
+    var updateComponent = function updateComponent() {
+      // 1.调用render 产生虚拟节点 vNode
+      var vNodes = vm._render(); // 2. 根据虚拟dom 产生真实dom
 
 
-    vm._update(vNodes); // 3. 挂载到container上
+      vm._update(vNodes);
+    };
 
+    new Watcher(vm, updateComponent, true); // // 1.调用render 产生虚拟节点 vNode
+    // const vNodes = vm._render();
+    // // 2. 根据虚拟dom 产生真实dom
+    // vm._update(vNodes);
+    // 3. 挂载到container上
   }
   /**
    * 扩展原型方法
@@ -814,11 +1002,10 @@
         value: function _update(vnode) {
           var vm = this; // 挂载的容器
 
-          var el = vm.$el;
-          console.log(el); // patch 更新 + 初始化
+          var el = vm.$el; // console.log(el);
+          // patch 更新 + 初始化
 
-          vm.$el = patch(el, vnode);
-          console.log("_update----------------->", vnode);
+          vm.$el = patch(el, vnode); // console.log("_update----------------->", vnode);
         }
       },
       // _c("div",{name:'zs'},...children) 元素 虚拟dom

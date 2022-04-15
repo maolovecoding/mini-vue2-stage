@@ -2,10 +2,11 @@
  * @Author: 毛毛
  * @Date: 2022-04-13 08:51:06
  * @Last Modified by: 毛毛
- * @Last Modified time: 2022-04-13 19:28:17
+ * @Last Modified time: 2022-04-15 10:40:59
  */
 import { isObject } from "../utils";
 import arrayProto from "./array";
+import Dep from "./dep";
 class Observe {
   constructor(data) {
     // 记录this 也是一个标识 如果对象上有了该属性 标识已经被观测
@@ -47,8 +48,15 @@ class Observe {
 export function defineReactive(obj, key, value) {
   // 如果属性也是对象 再次劫持
   observe(value);
+  // 每个属性都有一个dep
+  let dep = new Dep();
   Object.defineProperty(obj, key, {
     get() {
+      // 判断 Dep.target
+      if (Dep.target) {
+        // 当前属性 记住这个watcher 也就是视图依赖的收集
+        dep.depend();
+      }
       return value;
     },
     set(newVal) {
@@ -56,6 +64,8 @@ export function defineReactive(obj, key, value) {
       // 新值是对象 则需要重新观测
       observe(newVal);
       value = newVal;
+      // 更新数据 通知视图更新
+      dep.notify();
     },
   });
 }

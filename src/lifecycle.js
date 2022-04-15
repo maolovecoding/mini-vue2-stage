@@ -1,10 +1,10 @@
 import { createElementVNode, createTextVNode } from "./vdom";
-
+import Watcher from "./observe/watcher";
 /*
  * @Author: 毛毛
  * @Date: 2022-04-14 14:10:39
  * @Last Modified by: 毛毛
- * @Last Modified time: 2022-04-14 20:42:46
+ * @Last Modified time: 2022-04-15 10:15:07
  * 组件挂载 生命周期
  * vm._render() 生成虚拟节点 vNode
  * vm._update() 虚拟节点变成真实节点 dom
@@ -15,10 +15,18 @@ export function mountComponent(vm, container) {
     value: container,
     writable: true,
   });
-  // 1.调用render 产生虚拟节点 vNode
-  const vNodes = vm._render();
-  // 2. 根据虚拟dom 产生真实dom
-  vm._update(vNodes);
+  // 这里把渲染逻辑封装到watcher中
+  const updateComponent = () => {
+    // 1.调用render 产生虚拟节点 vNode
+    const vNodes = vm._render();
+    // 2. 根据虚拟dom 产生真实dom
+    vm._update(vNodes);
+  };
+  new Watcher(vm, updateComponent, true);
+  // // 1.调用render 产生虚拟节点 vNode
+  // const vNodes = vm._render();
+  // // 2. 根据虚拟dom 产生真实dom
+  // vm._update(vNodes);
   // 3. 挂载到container上
 }
 /**
@@ -44,10 +52,10 @@ export function initLifeCycle(Vue) {
         const vm = this;
         // 挂载的容器
         const el = vm.$el;
-        console.log(el);
+        // console.log(el);
         // patch 更新 + 初始化
         vm.$el = patch(el, vnode);
-        console.log("_update----------------->", vnode);
+        // console.log("_update----------------->", vnode);
       },
     },
     // _c("div",{name:'zs'},...children) 元素 虚拟dom

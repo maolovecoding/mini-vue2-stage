@@ -4,7 +4,6 @@ import resolve from 'rollup-plugin-node-resolve'
 export default {
   // 入口
   input: "./src/index.js",
-  sourcemap:true,
   // 出口
   output: {
     // 生成的文件
