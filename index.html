@@ -36,7 +36,7 @@
       template: `
       <div id="app" style="color:red;background-color:{{backgroundColor}};" abc a=b>
         我是普通文本div
-        <h2 key="hh">{{name}} --- {{age}}---</h2>
+        <h2 key="hh" id="h2">{{name}} --- {{age}}---</h2>
         <br/>
         <span class="span1">{{age}}</span>
       </div>
@@ -46,9 +46,21 @@
     // 更新数据 期望视图刷新
     // setTimeout(()=>{
     //   app.name = "vue2 ..."
+    //   app.age = 2021
+    //   // 可能更新多个组件
     //   // 手动更新
-    //   app._update(app._render())
+    //   // app._update(app._render())
     // },1111)
+
+    // 问题：更改响应式数据的值 不会立即渲染页面
+    // 所以同步获取dom的值不是最新页面渲染的值
+    // const h2 = document.querySelector("#h2")
+    // console.log(h2.innerHTML) // vue2 --- 2015---
+    app.$nextTick(() => {
+      const h2 = document.querySelector("#h2")
+      console.log(h2.innerHTML);
+    })
+    app.name = "vue2......";
     // 模板引擎 性能差 需要正则匹配 替换 vue1.0 没有引入虚拟dom的改变
     // vue2 采用虚拟dom 数据变化后比较虚拟dom的差异 最后更新需要更新的地方
     // 核心就是我们需要将模板变成我们的js语法 通过js语法生成虚拟dom

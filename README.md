@@ -171,3 +171,140 @@ class Watcher{}
 ![image-20220415110028536](https://gitee.com/maolovecoding/picture/raw/master/images/web/webpack/image-20220415110028536.png)
 
 正常情况下，更新两次视图是没有问题的，但是此时两次数据的更新发生在一次同步代码中，我们应该让视图的更新是异步的，这样在一次操作更新多个数据的情况下，也只会渲染一次视图，提高渲染速率。
+
+**那么我们的想法就是合并更新，在所有的更新数据做完以后，在刷新页面。也就是批处理，事件环。**
+
+#### 事件环
+
+我们的期望就是，同步代码执行完毕之后，在执行视图的渲染（作为异步任务）。把更新操作延迟。
+
+方法就是使用一个队列维护需要更新的watcher，第一次更新属性值的时候，就开启一个定时器，清空所有的watcher。后续的数据改变的操作，都不会再次开启定时器，只是会把需要更新的watcher再次入队列。（当然watcher我们会先去重）。
+
+但是这个清空操作是在同步代码执行完毕后才会执行的。
+
+```js
+// watcher queue 本次需要更新的视图队列
+let queue = [];
+// watcher 去重  {0:true,1:true}
+let has = {};
+// 批处理 也可以说是防抖
+let pending = false;
+/**
+ * 不管执行多少次update操作，但是我们最终只执行一轮刷新操作
+ * @param {*} watcher
+ */
+function queueWatcher(watcher) {
+  const id = watcher.id;
+  // 去重
+  if (!has[id]) {
+    queue.push(watcher);
+    has[id] = true;
+    console.log(queue);
+    if (!pending) {
+      // 刷新队列 多个属性刷新 其实执行的只是第一次 合并刷新了
+      setTimeout(flushSchedulerQueue, 0);
+      pending = true;
+    }
+  }
+}
+/**
+ * 刷新调度队列 且清理当前的标识 has pending 等都重置
+ * 先执行第一批的watcher，如果刷新过程中有新的watcher产生，再次加入队列即可
+ */
+function flushSchedulerQueue() {
+  const flushQueue = [...queue];
+  queue = [];
+  has = {};
+  pending = false;
+  // 刷新视图 如果在刷新过程中 还有新的watcher 会重新放到queueWatcher中
+  flushQueue.forEach((watcher) => watcher.run()); // run 就是执行render
+}
+```
+
+#### nextTick
+
+**原理：**
+
+因为我们数据的更新和视图的更新不再是同步，导致我们在同步获取视图最新的dom元素时，可能出现获取的元素和视图实际显示的元素不一致的情况。于是出现了 **nextTick方法**
+
+实际上：nextTick方法内部也是维护了一个异步回调队列，开启一个定时器，每次调用该方法传入回调，都是把回调函数放入队列，并不是每次调用nextTick方法都开启一个定时器（比较销毁性能）。再放入第一个回调函数的时候，开启定时器，后续的回调函数只放入队列而不会再次开启定时器了，。所以nextTick不是创建了异步任务，而是将这个任务维护到了队列而已。
+
+**nextTick方法是同步还是异步？**
+
+把任务（回调）放到队列是同步，实际执行任务是异步。
+
+```js
+// 任务队列
+let callbacks = [];
+// 是否等待任务刷新
+let waiting = false;
+/**
+ * 刷新异步回调函数队列
+ */
+function flushCallbacks() {
+  const cbs = [...callbacks];
+  callbacks = [];
+  waiting = false;
+  cbs.forEach((cb) => cb());
+}
+/**
+ * 异步批处理
+ * 是先执行内部的回调 还是用户的？ 用个队列 排序
+ * @param {Function} cb 回调函数
+ */
+export function nextTick(cb) {
+  // 使用队列维护nextTick中的callback方法
+  callbacks.push(cb);
+  if (!waiting) {
+    setTimeout(flushCallbacks, 0); // 刷新
+    waiting = true;
+  }
+}
+```
+
+#### vue的nextTick
+
+实际上，vue的nextTick方法，内部并没有直接使用原生的某一个异步api（比如promise，setTimeout等）。而是采用优雅降级的方法。
+
+1. 内部先采用的是promise（ie不兼容）。
+2. 有一个和Promise等价的 [MutationObserve](https://developer.mozilla.org/zh-CN/docs/Web/API/MutationObserver)。也是异步微任务。（此API是H5的，只能在浏览器中使用）
+3. 考虑ie浏览器专享的 setImmediate API。性能比settimeout好一些
+4. 最后直接上setTimeout
+
+**采用优雅降级的目的，**还是为了用户可以尽快看见页面的渲染。
+
+```js
+/**
+ * 优雅降级  Promise -> MutationObserve -> setImmediate -> setTimeout(需要开线程 开销最大)
+ */
+let timerFunc = null;
+if (Promise) {
+  timerFunc = () => Promise.resolve().then(flushCallbacks);
+} else if (MutationObserver) {
+  // 创建并返回一个新的 MutationObserver 它会在指定的DOM发生变化时被调用（异步执行callback）。
+  const observer = new MutationObserver(flushCallbacks);
+  // TODO 创建文本节点的API 应该封装 为了方便跨平台
+  const textNode = document.createTextNode(1);
+  console.log("observer-----------------")
+  // 监控文本值的变化
+  observer.observe(textNode, {
+    characterData: true,
+  });
+  timerFunc = () => (textNode.textContent = 2);
+} else if (setImmediate) {
+  // IE平台
+  timerFunc = () => setImmediate(flushCallbacks);
+} else {
+  timerFunc = () => setTimeout(flushCallbacks, 0);
+}
+```
+
+对于vue3，肯定就不需要这种方式了，在不兼容ie的情况下，可以直接使用promise了。
+
+![image-20220415150046818](https://gitee.com/maolovecoding/picture/raw/master/images/web/webpack/image-20220415150046818.png)
+
+经过一次次处理，现在是可以在视图更新以后再去拿最新的dom了。
+
+当然：对于更改值放在取值的下面，那么获取到的肯定还是旧的dom值。vue也是如此的。
+
+![image-20220415150347883](https://gitee.com/maolovecoding/picture/raw/master/images/web/webpack/image-20220415150347883.png)
