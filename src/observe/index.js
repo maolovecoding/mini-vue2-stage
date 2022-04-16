@@ -2,7 +2,7 @@
  * @Author: 毛毛
  * @Date: 2022-04-13 08:51:06
  * @Last Modified by: 毛毛
- * @Last Modified time: 2022-04-15 10:40:59
+ * @Last Modified time: 2022-04-16 13:24:01
  */
 import { isObject } from "../utils";
 import arrayProto from "./array";
@@ -57,6 +57,7 @@ export function defineReactive(obj, key, value) {
         // 当前属性 记住这个watcher 也就是视图依赖的收集
         dep.depend();
       }
+      // console.log("----------------dep.get----------------",key)
       return value;
     },
     set(newVal) {

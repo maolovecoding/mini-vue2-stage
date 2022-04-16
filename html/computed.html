@@ -1,0 +1,61 @@
+<!DOCTYPE html>
+<html lang="en">
+
+<head>
+  <meta charset="UTF-8">
+  <meta http-equiv="X-UA-Compatible" content="IE=edge">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Document</title>
+</head>
+
+<body>
+  <div id="app"></div>
+  <script src="../dist/vue.js"></script>
+  <!-- <script src="https://cdn.jsdelivr.net/npm/vue@2.6.14/dist/vue.js"></script> -->
+  <script>
+    // 计算属性的实现
+    const vm = new Vue({
+      data: {
+        firstName: "听雨",
+        lastName: "少年",
+      },
+      computed: {
+        /**
+         * 计算属性：依赖的值发生改变 才会重新执行用户的方法 计算属性需要维护一个dirty属性
+         */
+        // 只有get的计算属性
+        fullName1() {
+          console.log("fullName1", this)
+          return this.firstName + " " + this.lastName
+        },
+        // getter and setter
+        fullName2: {
+          get() {
+            console.log("fullName2", this)
+            return this.firstName + " " + this.lastName
+          },
+          set(newVal) {
+            console.log("setter", newVal,this === vm)
+            // [this.firstName, this.lastName] = newVal.split(" ")
+            const [firstName, lastName] = newVal.split(" ")
+            this.firstName = firstName
+            this.lastName = lastName
+          }
+        }
+      },
+      el: "#app",
+      template: `
+        <div id="app">
+            <h2>{{fullName1}}</h2>
+          </div>
+      `
+    })
+    setTimeout(() => {
+      vm.fullName2 = "少年 听雨"
+      // vm.firstName = "asdad"
+      console.log(vm.fullName1)
+    }, 2000)
+  </script>
+</body>
+
+</html>

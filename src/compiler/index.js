@@ -2,7 +2,7 @@
  * @Author: 毛毛
  * @Date: 2022-04-14 12:35:12
  * @Last Modified by: 毛毛
- * @Last Modified time: 2022-04-15 21:15:39
+ * @Last Modified time: 2022-04-16 09:12:58
  * @Description 模板编译
  * 模板引擎实现原理： with + new Function
  */
@@ -54,23 +54,24 @@ function generateProps(attrs) {
     if (attr.name === "style") {
       // style:"color:red;background-color:{{backgroundColor}}"
       // style:{color:"red","background-color":"{{backgroundColor}}"}
-      let style = "";
-      // const style = {};
+      // let style = "";
+      const style = {};
       attr.value.split(";").forEach((item) => {
         if (!item.trim()) return;
         let [key, value] = item.split(":");
-        let match = null;
+        // let match = null;
         // defaultTagRE.lastIndex = 0;
-        match = defaultTagRE.exec(value);
-        if (match) {
-          value = `_s(${match[1]})`;
-        } else value = `'${value}'`;
-        // style[key] = value;
-        style += `'${key}':${value},`;
+        // match = defaultTagRE.exec(value);
+        // if (match) {
+        //   value = `_s(${match[1]})`;
+        // } else value = `'${value}'`;
+        style[key] = value;
+        // style += `'${key}':${value},`;
         // console.log(style);
       });
-      str += `${attr.name}:{${style.slice(0, -1)}},`;
-    } else str += `${attr.name}:${JSON.stringify(attr.value)},`;
+      // str += `${attr.name}:{${style.slice(0, -1)}},`;
+      str += `${attr.name}:${JSON.stringify(style)},`;
+    } else str += `"${attr.name}":${JSON.stringify(attr.value)},`;
   }
   return `{${str.slice(0, -1)}}`;
 }

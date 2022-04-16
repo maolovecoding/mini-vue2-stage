@@ -2,7 +2,7 @@
  * @Author: 毛毛
  * @Date: 2022-04-15 09:31:54
  * @Last Modified by: 毛毛
- * @Last Modified time: 2022-04-15 21:15:14
+ * @Last Modified time: 2022-04-16 09:50:12
  * 依赖收集 dep
  */
 let id = 0;
@@ -39,5 +39,23 @@ class Dep {
   }
   // 当前的watcher
   static target = null;
+}
+
+// watcher queue 视图渲染栈
+const watcherStack = [];
+/**
+ * watcher入栈
+ * @param {Watcher} watcher
+ */
+export function pushWatcherTarget(watcher) {
+  watcherStack.push(watcher);
+  Dep.target = watcher;
+}
+/**
+ * watcher 出栈 且让 Dep.target 指向上一个入栈的 watcher
+ */
+export function popWatcherTarget() {
+  watcherStack.pop();
+  Dep.target = watcherStack[watcherStack.length - 1];
 }
 export default Dep;

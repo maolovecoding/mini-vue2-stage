@@ -1,10 +1,10 @@
-import Dep from "./dep";
+import Dep, { popWatcherTarget, pushWatcherTarget } from "./dep";
 
 /*
  * @Author: 毛毛
  * @Date: 2022-04-15 09:09:45
  * @Last Modified by: 毛毛
- * @Last Modified time: 2022-04-15 14:54:49
+ * @Last Modified time: 2022-04-16 12:55:37
  * 封装视图的渲染逻辑 watcher
  */
 let id = 0;
@@ -26,28 +26,44 @@ class Watcher {
    *
    * @param {*} vm 组件实例
    * @param {*} updateComponent 渲染页面的回调函数
-   * @param {boolean} options 是否是初渲染
+   * @param {boolean|object} options 额外选项 true表示初次渲染 对象是额外的配置
    */
   constructor(vm, updateComponent, options) {
-    this.renderWatcher = options;
+    if (typeof options === "boolean") this.renderWatcher = true;
+    // 记录vm实例
+    this.vm = vm;
+    this.options = options;
     // 调用这个函数 意味着可以发生取值操作
     this.getter = updateComponent;
     // 收集 dep   watcher -> deps
     this.deps = []; // 在组件卸载的时候，清理响应式数据使用 还有实现响应式数据等都需要使用到
     this.depsId = new Set(); // dep id
+    // 是否懒执行
+    this.lazy = options?.lazy;
+    // dirty  计算属性使用的
+    this.dirty = this.lazy;
+    console.log(this.lazy);
     // 初渲染
-    this.get();
+    this.lazy || this.get();
   }
   get() {
     /**
      * 1.当我们创建渲染watcher的时候 会把当前的渲染watcher放到Dep.target上
      * 2.调用_render()取值 走到值的get上
      */
-    Dep.target = this;
-    // 去 vm上取值
-    this.getter();
+    // Dep.target = this;
+    pushWatcherTarget(this);
+    // 去 vm上取值 这里的this不是vm了，所以取值需要绑定vm
+    const val = this.getter.call(this.vm);
     // 渲染完毕后清空
-    Dep.target = null;
+    // Dep.target = null;
+    popWatcherTarget();
+    return val; // 计算属性执行的返回值
+  }
+  evaluate() {
+    // 获取到用户函数的返回值(getter返回值) 并且标识数据不是脏的
+    this.value = this.get();
+    this.dirty = false;
   }
   /**
    * 一个组件对应多个属性 但是重复的属性 也不需要记录
@@ -69,6 +85,11 @@ class Watcher {
    * 更新视图 本质重新执行 render函数
    */
   update() {
+    // 是计算属性
+    if (this.lazy) {
+      // 依赖的值变化 就标识计算属性的值是脏值了
+      return this.dirty = true;
+    }
     // 同步更新视图 改为异步更新视图
     // this.get();
     // 把当前的watcher暂存
@@ -81,6 +102,17 @@ class Watcher {
   run() {
     console.log("run------------------");
     this.get();
+  }
+  depend(){
+    // 之前是属性dep记录watcher
+    // 这里是watcher记录属性dep
+    let i = this.deps.length;
+    while(i--){
+      // 让计算属性watcher收集上层watcher
+      // curr dep -> prev watcher -> curr dep -> prev watcher
+      // dep.depend() -> watcher.addDep(dep) -> dep.addSub(watcher)
+      this.deps[i].depend()
+    }
   }
 }
 // watcher queue 本次需要更新的视图队列
@@ -145,7 +177,7 @@ if (Promise) {
   const observer = new MutationObserver(flushCallbacks);
   // TODO 创建文本节点的API 应该封装 为了方便跨平台
   const textNode = document.createTextNode(1);
-  console.log("observer-----------------")
+  console.log("observer-----------------");
   // 监控文本值的变化
   observer.observe(textNode, {
     characterData: true,

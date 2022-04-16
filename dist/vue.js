@@ -161,9 +161,15 @@
    * @Author: 毛毛
    * @Date: 2022-04-15 20:43:57
    * @Last Modified by: 毛毛
-   * @Last Modified time: 2022-04-15 21:37:02
+   * @Last Modified time: 2022-04-15 21:57:13
    * 合并对象的方法
    */
+  /**
+   * 合并选项
+   * @param  {...any} options 
+   * @returns 
+   */
+
   function mergeOptions() {
     var opts = {};
 
@@ -297,7 +303,7 @@
    * @Author: 毛毛
    * @Date: 2022-04-15 09:31:54
    * @Last Modified by: 毛毛
-   * @Last Modified time: 2022-04-15 21:15:14
+   * @Last Modified time: 2022-04-16 09:50:12
    * 依赖收集 dep
    */
   var id$1 = 0;
@@ -351,9 +357,29 @@
     }]);
 
     return Dep;
-  }();
+  }(); // watcher queue 视图渲染栈
+
 
   _defineProperty(Dep, "target", null);
+
+  var watcherStack = [];
+  /**
+   * watcher入栈
+   * @param {Watcher} watcher
+   */
+
+  function pushWatcherTarget(watcher) {
+    watcherStack.push(watcher);
+    Dep.target = watcher;
+  }
+  /**
+   * watcher 出栈 且让 Dep.target 指向上一个入栈的 watcher
+   */
+
+  function popWatcherTarget() {
+    watcherStack.pop();
+    Dep.target = watcherStack[watcherStack.length - 1];
+  }
 
   var Observe = /*#__PURE__*/function () {
     function Observe(data) {
@@ -423,7 +449,8 @@
         if (Dep.target) {
           // 当前属性 记住这个watcher 也就是视图依赖的收集
           dep.depend();
-        }
+        } // console.log("----------------dep.get----------------",key)
+
 
         return value;
       },
@@ -451,6 +478,269 @@
     return new Observe(data);
   }
 
+  /*
+   * @Author: 毛毛
+   * @Date: 2022-04-15 09:09:45
+   * @Last Modified by: 毛毛
+   * @Last Modified time: 2022-04-16 12:55:37
+   * 封装视图的渲染逻辑 watcher
+   */
+
+  var id = 0;
+  /**
+   * watcher 进行实际的视图渲染
+   * 每个组件都有自己的watcher，可以减少每次更新页面的部分
+   * 给每个属性都增加一个dep，目的就是收集watcher
+   * 一个视图（组件）可能有很多属性，多个属性对应一个视图 n个dep对应1个watcher
+   * 一个属性也可能对应多个视图（组件）
+   * 所以 dep 和 watcher 是多对多关系
+   *
+   * 每个属性都有自己的dep，属性就是被观察者
+   * watcher就是观察者（属性变化了会通知观察者进行视图更新）-> 观察者模式
+   */
+
+  var Watcher = /*#__PURE__*/function () {
+    // 目前只有一个watcher实例 因为我只有一个实例 根组件
+
+    /**
+     *
+     * @param {*} vm 组件实例
+     * @param {*} updateComponent 渲染页面的回调函数
+     * @param {boolean|object} options 额外选项 true表示初次渲染 对象是额外的配置
+     */
+    function Watcher(vm, updateComponent, options) {
+      _classCallCheck(this, Watcher);
+
+      _defineProperty(this, "id", id++);
+
+      if (typeof options === "boolean") this.renderWatcher = true; // 记录vm实例
+
+      this.vm = vm;
+      this.options = options; // 调用这个函数 意味着可以发生取值操作
+
+      this.getter = updateComponent; // 收集 dep   watcher -> deps
+
+      this.deps = []; // 在组件卸载的时候，清理响应式数据使用 还有实现响应式数据等都需要使用到
+
+      this.depsId = new Set(); // dep id
+      // 是否懒执行
+
+      this.lazy = options === null || options === void 0 ? void 0 : options.lazy; // dirty  计算属性使用的
+
+      this.dirty = this.lazy;
+      console.log(this.lazy); // 初渲染
+
+      this.lazy || this.get();
+    }
+
+    _createClass(Watcher, [{
+      key: "get",
+      value: function get() {
+        /**
+         * 1.当我们创建渲染watcher的时候 会把当前的渲染watcher放到Dep.target上
+         * 2.调用_render()取值 走到值的get上
+         */
+        // Dep.target = this;
+        pushWatcherTarget(this); // 去 vm上取值 这里的this不是vm了，所以取值需要绑定vm
+
+        var val = this.getter.call(this.vm); // 渲染完毕后清空
+        // Dep.target = null;
+
+        popWatcherTarget();
+        return val; // 计算属性执行的返回值
+      }
+    }, {
+      key: "evaluate",
+      value: function evaluate() {
+        // 获取到用户函数的返回值(getter返回值) 并且标识数据不是脏的
+        this.value = this.get();
+        this.dirty = false;
+      }
+      /**
+       * 一个组件对应多个属性 但是重复的属性 也不需要记录
+       * 比如在组件视图中 用到了多次的name属性，那么需要记录每次用到name的watcher吗
+       * @param {*} dep
+       */
+
+    }, {
+      key: "addDep",
+      value: function addDep(dep) {
+        // dep去重 可以用到 dep.id
+        var id = dep.id;
+
+        if (!this.depsId.has(id)) {
+          // watcher记录dep
+          this.deps.push(dep);
+          this.depsId.add(id); // dep记录watcher
+
+          dep.addSub(this);
+        }
+      }
+      /**
+       * 更新视图 本质重新执行 render函数
+       */
+
+    }, {
+      key: "update",
+      value: function update() {
+        // 是计算属性
+        if (this.lazy) {
+          // 依赖的值变化 就标识计算属性的值是脏值了
+          return this.dirty = true;
+        } // 同步更新视图 改为异步更新视图
+        // this.get();
+        // 把当前的watcher暂存
+
+
+        queueWatcher(this);
+        console.log("update watcher.................");
+      }
+      /**
+       * 实际刷新视图的操作 执行render用到的都是实例最新的属性值
+       */
+
+    }, {
+      key: "run",
+      value: function run() {
+        console.log("run------------------");
+        this.get();
+      }
+    }, {
+      key: "depend",
+      value: function depend() {
+        // 之前是属性dep记录watcher
+        // 这里是watcher记录属性dep
+        var i = this.deps.length;
+
+        while (i--) {
+          // 让计算属性watcher收集上层watcher
+          // curr dep -> prev watcher -> curr dep -> prev watcher
+          // dep.depend() -> watcher.addDep(dep) -> dep.addSub(watcher)
+          this.deps[i].depend();
+        }
+      }
+    }]);
+
+    return Watcher;
+  }(); // watcher queue 本次需要更新的视图队列
+
+
+  var queue = []; // watcher 去重  {0:true,1:true}
+
+  var has = {}; // 批处理 也可以说是防抖
+
+  var pending = false;
+  /**
+   * 不管执行多少次update操作，但是我们最终只执行一轮刷新操作
+   * @param {*} watcher
+   */
+
+  function queueWatcher(watcher) {
+    var id = watcher.id; // 去重
+
+    if (!has[id]) {
+      queue.push(watcher);
+      has[id] = true;
+      console.log(queue);
+
+      if (!pending) {
+        // 刷新队列 多个属性刷新 其实执行的只是第一次 合并刷新了
+        // setTimeout(flushSchedulerQueue, 0);
+        // 将刷新队列的执行和用户回调的执行都放到一个微任务中
+        nextTick(flushSchedulerQueue);
+        pending = true;
+      }
+    }
+  }
+  /**
+   * 刷新调度队列 且清理当前的标识 has pending 等都重置
+   * 先执行第一批的watcher，如果刷新过程中有新的watcher产生，再次加入队列即可
+   */
+
+
+  function flushSchedulerQueue() {
+    var flushQueue = _toConsumableArray(queue);
+
+    queue = [];
+    has = {};
+    pending = false; // 刷新视图 如果在刷新过程中 还有新的watcher 会重新放到queueWatcher中
+
+    flushQueue.forEach(function (watcher) {
+      return watcher.run();
+    });
+  } // 任务队列
+
+
+  var callbacks = []; // 是否等待任务刷新
+
+  var waiting = false;
+  /**
+   * 刷新异步回调函数队列
+   */
+
+  function flushCallbacks() {
+    var cbs = _toConsumableArray(callbacks);
+
+    callbacks = [];
+    waiting = false;
+    cbs.forEach(function (cb) {
+      return cb();
+    });
+  }
+  /**
+   * 优雅降级  Promise -> MutationObserve -> setImmediate -> setTimeout(需要开线程 开销最大)
+   */
+
+
+  var timerFunc = null;
+
+  if (Promise) {
+    timerFunc = function timerFunc() {
+      return Promise.resolve().then(flushCallbacks);
+    };
+  } else if (MutationObserver) {
+    // 创建并返回一个新的 MutationObserver 它会在指定的DOM发生变化时被调用（异步执行callback）。
+    var observer = new MutationObserver(flushCallbacks); // TODO 创建文本节点的API 应该封装 为了方便跨平台
+
+    var textNode = document.createTextNode(1);
+    console.log("observer-----------------"); // 监控文本值的变化
+
+    observer.observe(textNode, {
+      characterData: true
+    });
+
+    timerFunc = function timerFunc() {
+      return textNode.textContent = 2;
+    };
+  } else if (setImmediate) {
+    // IE平台
+    timerFunc = function timerFunc() {
+      return setImmediate(flushCallbacks);
+    };
+  } else {
+    timerFunc = function timerFunc() {
+      return setTimeout(flushCallbacks, 0);
+    };
+  }
+  /**
+   * 异步批处理
+   * 是先执行内部的回调 还是用户的？ 用个队列 排序
+   * @param {Function} cb 回调函数
+   */
+
+
+  function nextTick(cb) {
+    // 使用队列维护nextTick中的callback方法
+    callbacks.push(cb);
+
+    if (!waiting) {
+      // setTimeout(flushCallbacks, 0); // 刷新
+      // 使用vue的原理 优雅降级
+      timerFunc();
+      waiting = true;
+    }
+  }
+
   function proxy(vm, target, key) {
     Object.defineProperty(vm, key, {
       enumerable: true,
@@ -474,11 +764,16 @@
     if (opts.data) {
       // data 初始化
       initData(vm);
+    } // computed
+
+
+    if (opts.computed) {
+      initComputed(vm);
     }
   }
   /**
    * 初始化 data
-   * @param {*} vm 实例
+   * @param {Vue} vm 实例
    */
 
 
@@ -500,6 +795,78 @@
     for (var key in data) {
       proxy(vm, "_data", key);
     }
+  }
+  /**
+   * 初始化 computed
+   * @param {Vue} vm 实例
+   */
+
+
+  function initComputed(vm) {
+    var computed = vm.$options.computed;
+    var watchers = vm._computedWatchers = {};
+
+    for (var key in computed) {
+      var userDef = computed[key]; // function -> get
+      // object -> {get(){}, set(newVal){}}
+
+      var setter = void 0;
+      var getter = isFunction(userDef) ? userDef : (setter = userDef.set, getter); // 监控计算属性中 get的变化
+      // 每次data的属性发生改变 重新执行的就是这个get
+      // 传入额外的配置项 标明当前的函数 不需要立刻执行 只有在使用到计算属性了 才计算值
+      // 把属性和watcher对应起来
+
+      watchers[key] = new Watcher(vm, getter, {
+        lazy: true
+      }); // 劫持每一个计算属性
+
+      defineComputed(vm, key, setter);
+    }
+  }
+  /**
+   * 定义计算属性
+   * @param {*} target
+   * @param {*} key
+   * @param {*} setter
+   */
+
+
+  function defineComputed(target, key, setter) {
+    Object.defineProperty(target, key, {
+      // vm.key -> vm.get key this -> vm
+      get: createComputedGetter(key),
+      set: setter
+    });
+  }
+  /**
+   * vue2.x 的计算属性 不会收集依赖，只是让计算属性依赖的属性去收集依赖
+   * 创建一个懒执行（有缓存的）计算属性 判断值是否发生改变
+   * 检查是否需要执行这个getter
+   * @param {string} key
+   */
+
+
+  function createComputedGetter(key) {
+    // this -> vm 因为返回值给了计算属性的 get 我们是从 vm上取计算属性的
+    return function lazyGetter() {
+      // 对应属性的watcher
+      var watcher = this._computedWatchers[key];
+
+      if (watcher.dirty) {
+        // 如果是脏的 就去执行用户传入的getter函数 watcher.get()
+        // 但是为了可以拿到get的执行结果 我们调用 evaluate函数
+        watcher.evaluate(); // dirty = false
+      } // 计算属性watcher出栈后 还有渲染watcher（在视图中使用了计算属性）
+      // 或者说是在其他的watcher中使用了计算属性
+
+
+      if (Dep.target) {
+        // 让计算属性的watcher依赖的变量也去收集上层的watcher
+        watcher.depend();
+      }
+
+      return watcher.value;
+    };
   }
 
   /*
@@ -814,31 +1181,32 @@
       var attr = attrs[i];
 
       if (attr.name === "style") {
-        // style:"color:red;background-color:{{backgroundColor}}"
-        // style:{color:"red","background-color":"{{backgroundColor}}"}
-        var style = ""; // const style = {};
+        (function () {
+          // style:"color:red;background-color:{{backgroundColor}}"
+          // style:{color:"red","background-color":"{{backgroundColor}}"}
+          // let style = "";
+          var style = {};
+          attr.value.split(";").forEach(function (item) {
+            if (!item.trim()) return;
 
-        attr.value.split(";").forEach(function (item) {
-          if (!item.trim()) return;
-
-          var _item$split = item.split(":"),
-              _item$split2 = _slicedToArray(_item$split, 2),
-              key = _item$split2[0],
-              value = _item$split2[1];
-
-          var match = null; // defaultTagRE.lastIndex = 0;
-
-          match = defaultTagRE.exec(value);
-
-          if (match) {
-            value = "_s(".concat(match[1], ")");
-          } else value = "'".concat(value, "'"); // style[key] = value;
+            var _item$split = item.split(":"),
+                _item$split2 = _slicedToArray(_item$split, 2),
+                key = _item$split2[0],
+                value = _item$split2[1]; // let match = null;
+            // defaultTagRE.lastIndex = 0;
+            // match = defaultTagRE.exec(value);
+            // if (match) {
+            //   value = `_s(${match[1]})`;
+            // } else value = `'${value}'`;
 
 
-          style += "'".concat(key, "':").concat(value, ","); // console.log(style);
-        });
-        str += "".concat(attr.name, ":{").concat(style.slice(0, -1), "},");
-      } else str += "".concat(attr.name, ":").concat(JSON.stringify(attr.value), ",");
+            style[key] = value; // style += `'${key}':${value},`;
+            // console.log(style);
+          }); // str += `${attr.name}:{${style.slice(0, -1)}},`;
+
+          str += "".concat(attr.name, ":").concat(JSON.stringify(style), ",");
+        })();
+      } else str += "\"".concat(attr.name, "\":").concat(JSON.stringify(attr.value), ",");
     }
 
     return "{".concat(str.slice(0, -1), "}");
@@ -958,231 +1326,6 @@
 
   function createTextVNode(vm, text) {
     return vnode(vm, undefined, undefined, undefined, undefined, text);
-  }
-
-  /*
-   * @Author: 毛毛
-   * @Date: 2022-04-15 09:09:45
-   * @Last Modified by: 毛毛
-   * @Last Modified time: 2022-04-15 14:54:49
-   * 封装视图的渲染逻辑 watcher
-   */
-
-  var id = 0;
-  /**
-   * watcher 进行实际的视图渲染
-   * 每个组件都有自己的watcher，可以减少每次更新页面的部分
-   * 给每个属性都增加一个dep，目的就是收集watcher
-   * 一个视图（组件）可能有很多属性，多个属性对应一个视图 n个dep对应1个watcher
-   * 一个属性也可能对应多个视图（组件）
-   * 所以 dep 和 watcher 是多对多关系
-   *
-   * 每个属性都有自己的dep，属性就是被观察者
-   * watcher就是观察者（属性变化了会通知观察者进行视图更新）-> 观察者模式
-   */
-
-  var Watcher = /*#__PURE__*/function () {
-    // 目前只有一个watcher实例 因为我只有一个实例 根组件
-
-    /**
-     *
-     * @param {*} vm 组件实例
-     * @param {*} updateComponent 渲染页面的回调函数
-     * @param {boolean} options 是否是初渲染
-     */
-    function Watcher(vm, updateComponent, options) {
-      _classCallCheck(this, Watcher);
-
-      _defineProperty(this, "id", id++);
-
-      this.renderWatcher = options; // 调用这个函数 意味着可以发生取值操作
-
-      this.getter = updateComponent; // 收集 dep   watcher -> deps
-
-      this.deps = []; // 在组件卸载的时候，清理响应式数据使用 还有实现响应式数据等都需要使用到
-
-      this.depsId = new Set(); // dep id
-      // 初渲染
-
-      this.get();
-    }
-
-    _createClass(Watcher, [{
-      key: "get",
-      value: function get() {
-        /**
-         * 1.当我们创建渲染watcher的时候 会把当前的渲染watcher放到Dep.target上
-         * 2.调用_render()取值 走到值的get上
-         */
-        Dep.target = this; // 去 vm上取值
-
-        this.getter(); // 渲染完毕后清空
-
-        Dep.target = null;
-      }
-      /**
-       * 一个组件对应多个属性 但是重复的属性 也不需要记录
-       * 比如在组件视图中 用到了多次的name属性，那么需要记录每次用到name的watcher吗
-       * @param {*} dep
-       */
-
-    }, {
-      key: "addDep",
-      value: function addDep(dep) {
-        // dep去重 可以用到 dep.id
-        var id = dep.id;
-
-        if (!this.depsId.has(id)) {
-          // watcher记录dep
-          this.deps.push(dep);
-          this.depsId.add(id); // dep记录watcher
-
-          dep.addSub(this);
-        }
-      }
-      /**
-       * 更新视图 本质重新执行 render函数
-       */
-
-    }, {
-      key: "update",
-      value: function update() {
-        // 同步更新视图 改为异步更新视图
-        // this.get();
-        // 把当前的watcher暂存
-        queueWatcher(this);
-        console.log("update watcher.................");
-      }
-      /**
-       * 实际刷新视图的操作 执行render用到的都是实例最新的属性值
-       */
-
-    }, {
-      key: "run",
-      value: function run() {
-        console.log("run------------------");
-        this.get();
-      }
-    }]);
-
-    return Watcher;
-  }(); // watcher queue 本次需要更新的视图队列
-
-
-  var queue = []; // watcher 去重  {0:true,1:true}
-
-  var has = {}; // 批处理 也可以说是防抖
-
-  var pending = false;
-  /**
-   * 不管执行多少次update操作，但是我们最终只执行一轮刷新操作
-   * @param {*} watcher
-   */
-
-  function queueWatcher(watcher) {
-    var id = watcher.id; // 去重
-
-    if (!has[id]) {
-      queue.push(watcher);
-      has[id] = true;
-      console.log(queue);
-
-      if (!pending) {
-        // 刷新队列 多个属性刷新 其实执行的只是第一次 合并刷新了
-        // setTimeout(flushSchedulerQueue, 0);
-        // 将刷新队列的执行和用户回调的执行都放到一个微任务中
-        nextTick(flushSchedulerQueue);
-        pending = true;
-      }
-    }
-  }
-  /**
-   * 刷新调度队列 且清理当前的标识 has pending 等都重置
-   * 先执行第一批的watcher，如果刷新过程中有新的watcher产生，再次加入队列即可
-   */
-
-
-  function flushSchedulerQueue() {
-    var flushQueue = _toConsumableArray(queue);
-
-    queue = [];
-    has = {};
-    pending = false; // 刷新视图 如果在刷新过程中 还有新的watcher 会重新放到queueWatcher中
-
-    flushQueue.forEach(function (watcher) {
-      return watcher.run();
-    });
-  } // 任务队列
-
-
-  var callbacks = []; // 是否等待任务刷新
-
-  var waiting = false;
-  /**
-   * 刷新异步回调函数队列
-   */
-
-  function flushCallbacks() {
-    var cbs = _toConsumableArray(callbacks);
-
-    callbacks = [];
-    waiting = false;
-    cbs.forEach(function (cb) {
-      return cb();
-    });
-  }
-  /**
-   * 优雅降级  Promise -> MutationObserve -> setImmediate -> setTimeout(需要开线程 开销最大)
-   */
-
-
-  var timerFunc = null;
-
-  if (Promise) {
-    timerFunc = function timerFunc() {
-      return Promise.resolve().then(flushCallbacks);
-    };
-  } else if (MutationObserver) {
-    // 创建并返回一个新的 MutationObserver 它会在指定的DOM发生变化时被调用（异步执行callback）。
-    var observer = new MutationObserver(flushCallbacks); // TODO 创建文本节点的API 应该封装 为了方便跨平台
-
-    var textNode = document.createTextNode(1);
-    console.log("observer-----------------"); // 监控文本值的变化
-
-    observer.observe(textNode, {
-      characterData: true
-    });
-
-    timerFunc = function timerFunc() {
-      return textNode.textContent = 2;
-    };
-  } else if (setImmediate) {
-    // IE平台
-    timerFunc = function timerFunc() {
-      return setImmediate(flushCallbacks);
-    };
-  } else {
-    timerFunc = function timerFunc() {
-      return setTimeout(flushCallbacks, 0);
-    };
-  }
-  /**
-   * 异步批处理
-   * 是先执行内部的回调 还是用户的？ 用个队列 排序
-   * @param {Function} cb 回调函数
-   */
-
-
-  function nextTick(cb) {
-    // 使用队列维护nextTick中的callback方法
-    callbacks.push(cb);
-
-    if (!waiting) {
-      // setTimeout(flushCallbacks, 0); // 刷新
-      // 使用vue的原理 优雅降级
-      timerFunc();
-      waiting = true;
-    }
   }
 
   /*
@@ -1419,7 +1562,7 @@
    * @Author: 毛毛
    * @Date: 2022-04-12 22:48:39
    * @Last Modified by: 毛毛
-   * @Last Modified time: 2022-04-15 21:21:43
+   * @Last Modified time: 2022-04-16 10:31:11
    */
   function initMixin(Vue) {
     /**
@@ -1437,6 +1580,7 @@
       console.log(vm.$options); // 执行初始化之前，执行 beforeCreate 的钩子
 
       callHook(vm, "beforeCreate"); // 初始化状态
+      // TODO computed methods watcher ....
 
       initState(vm); // 状态初始化完毕之后，执行 created 钩子
 
@@ -1468,9 +1612,9 @@
         ops.render = render;
       } // console.log("$mount template-------------->", template);
       // 调用 render 实现页面渲染
+      // console.log(ops.render);
+      // 组件的挂载
 
-
-      console.log(ops.render); // 组件的挂载
 
       mountComponent(vm, el);
       /**

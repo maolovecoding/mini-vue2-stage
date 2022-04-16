@@ -2,7 +2,7 @@
  * @Author: 毛毛
  * @Date: 2022-04-12 22:48:39
  * @Last Modified by: 毛毛
- * @Last Modified time: 2022-04-15 21:21:43
+ * @Last Modified time: 2022-04-16 10:31:11
  */
 import { initState } from "./initState";
 import { compileToFunction } from "./compiler";
@@ -25,6 +25,7 @@ export function initMixin(Vue) {
     // 执行初始化之前，执行 beforeCreate 的钩子
     callHook(vm, "beforeCreate");
     // 初始化状态
+    // TODO computed methods watcher ....
     initState(vm);
     // 状态初始化完毕之后，执行 created 钩子
     callHook(vm, "created");
@@ -55,7 +56,7 @@ export function initMixin(Vue) {
     }
     // console.log("$mount template-------------->", template);
     // 调用 render 实现页面渲染
-    console.log(ops.render);
+    // console.log(ops.render);
     // 组件的挂载
     mountComponent(vm, el);
     /**

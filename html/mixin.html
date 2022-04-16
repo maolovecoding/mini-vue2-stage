@@ -11,6 +11,7 @@
 <body>
   <div id="app"></div>
   <script src="../dist/vue.js"></script>
+  <!-- <script src="https://cdn.jsdelivr.net/npm/vue@2.6.14/dist/vue.js"></script> -->
   <script>
     // Vue.mixin 混合 可以混入一些公共方法 这是全局混入
     /*
@@ -45,7 +46,7 @@
       // 挂载的dom元素
       el: "#app",
       template: `
-      <div id="app" style="color:red;background-color:{{backgroundColor}};" abc a=b>
+      <div id="app" style="color:red;background-color:skyblue;" abc a=b>
         我是普通文本div
         <h2 key="hh" id="h2">{{name}} --- {{age}}---</h2>
         <br/>
