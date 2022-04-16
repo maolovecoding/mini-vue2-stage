@@ -2,7 +2,7 @@
  * @Author: 毛毛
  * @Date: 2022-04-13 10:02:33
  * @Last Modified by: 毛毛
- * @Last Modified time: 2022-04-13 10:26:05
+ * @Last Modified time: 2022-04-16 17:40:23
  * @Description 重写数组中的变异方法
  */
 let oldArrayProto = Array.prototype;
@@ -48,6 +48,8 @@ methods.forEach((method) => {
     }
     console.log(`重写的${method}方法被调用------> this = `, this);
     const res = oldArrayProto[method].call(this, ...args);
+    // 通知更新 dep -> watcher -> 视图更新
+    ob.dep.notify();
     return res;
   };
 });

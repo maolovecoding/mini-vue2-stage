@@ -476,3 +476,158 @@ watch选项是一个对象，每个watch的属性作为键，
    ![image-20220416160038397](https://gitee.com/maolovecoding/picture/raw/master/images/web/webpack/image-20220416160038397.png)
 
 ![image-20220416160128191](https://gitee.com/maolovecoding/picture/raw/master/images/web/webpack/image-20220416160128191.png)
+
+### 数组和对象元素更新实现原理
+
+在vue中，我们知道数组有七个变异方法（会修改数组自身元素的方法），vue对这七个方法实现了重写，不然正常情况下我们使用这七个方法是没有办法实现响应式更新视图的。
+
+而且对于一个对象，如果我们修改的是对象已经在data中定义好的对象的属性，当然是可以进行响应式更新的，但是，如果我们新增一个属性，视图是没有办法实现响应式更新的。
+
+正常情况下，只有我们让数组属性的值变为一个新数组，或者对象属性变为一个新对象，这样才能让对于没有劫持的数组元素或者对象属性给劫持下来。
+
+![image-20220416172738629](https://gitee.com/maolovecoding/picture/raw/master/images/web/webpack/image-20220416172738629.png)
+
+```js
+// 数组数据响应式更新原理
+const vm = new Vue({
+    data: {
+        arr: ["海贼王", "火影忍者", "名侦探柯南"],
+        obj: { name: "张三" }
+    },
+    el: "#app",
+    // 模板编译为虚拟dom的时候，从arr对象取值了 _v(_s(变量)) JSON.stringify() 
+    // 所以对象会收集依赖
+    template: `
+<div id="app">
+<ul>
+<li>{{arr[0]}}</li>
+<li>{{arr[1]}}</li>
+<li>{{arr[2]}}</li>
+<li>{{obj}}</li>
+</ul>
+</div>
+`
+})
+setTimeout(() => {
+    // 这种修改方式无法监控
+    vm.arr[1] += 1
+    // 也不会刷新视图
+    vm.arr.length = 10;
+    // 7个数组的变异方法可以监控到 因为我们重写了
+    // 这里并没有改变 arr属性 只是改变了arr这个数组对象
+    // arr数组对象自身并没有改变（没有变成新数组，地址没改变）
+    vm.arr.push("12")
+    vm.obj.age = 22
+    console.log("1秒后更新。。。",vm.arr,vm.obj)
+}, 1000)
+```
+
+**所以我们为了能劫持修改数组自身和给对象新增属性等，也可以被Vue劫持，我们需要在数组，对象等引用类型的属性上，也让其自身具有dep，不仅仅是对象的属性，数组的元素等需要被劫持，数组，对象等自身也需要被劫持。**
+
+也就是说：不管这个属性是原始类型，还是引用类型，都让其对应一个dep，用来收集依赖。
+
+```js
+class Observe {
+  constructor(data) {
+    // 让引用数据自身也实现依赖收集 这个dep是放在 data.__ob__ = this 上的
+    // 也就是说 data.__ob__.dep 并不是 data.dep 所以不会发生重复
+    this.dep = new Dep();
+    // 记录this 也是一个标识 如果对象上有了该属性 标识已经被观测
+    Object.defineProperty(data, "__ob__", {
+      value: this, // observe的实例
+    });
+    // 如果劫持的数据是数组
+    if (Array.isArray(data)) {
+      // 重写数组上的7个方法 这7个变异方法是可以修改数组本身的
+      Object.setPrototypeOf(data, arrayProto);
+      // 对于数组元素是 引用类型的，需要深度观测的
+      this.observeArray(data);
+    } else {
+      // Object.defineProperty 只能劫持已经存在的属性（vue提供单独的api $set $delete 为了增加新的响应式属性）
+      this.walk(data);
+    }
+  }
+  /**
+   * 循环对象 对属性依次劫持 重新‘定义’属性
+   * @param {*} data
+   */
+  walk(data) {
+    Object.keys(data).forEach((key) => defineReactive(data, key, data[key]));
+  }
+  /**
+   * 劫持数组元素 是普通原始值不会劫持
+   * @param {Array} data
+   */
+  observeArray(data) {
+    data.forEach((item) => observe(item));
+  }
+}
+```
+
+![image-20220416175015018](https://gitee.com/maolovecoding/picture/raw/master/images/web/webpack/image-20220416175015018.png)
+
+![image-20220416175053115](https://gitee.com/maolovecoding/picture/raw/master/images/web/webpack/image-20220416175053115.png)
+
+可以看见，修改数组自身的元素，视图也能正常更新。
+
+**但是要注意，直接使用arr[index]的方式修改元素，和新增对象还不存在的元素，目前还不能进行视图更新。**
+
+![image-20220416175343403](https://gitee.com/maolovecoding/picture/raw/master/images/web/webpack/image-20220416175343403.png)
+
+也就是说目前只是修改数组自身的7个变异方法，可以劫持到，并且实现视图更新。对于使用下标修改元素和修改数组的长度等，是不能劫持到的。
+
+**对于新增属性，需要使用vm.$set()方法新增才能实现劫持。**
+
+通过上面的操作，给每个对象的观察者observe都挂上了一个dep，用来收集每个对象自身的依赖。
+
+当我们给对象新增属性的时候，可以observe通知dep更新视图。
+
+```js
+setTimeout(() => {
+    vm.obj.age = 22
+    vm.obj.__ob__.dep.notify()//$set原理
+    console.log("1秒后更新。。。",vm.arr,vm.obj)
+    }, 1000)
+```
+
+**$set本质上就是这种原理实现的。**
+
+#### 深度数据劫持
+
+对于数组元素还是数组的这种情况，需要二次侦听。
+
+![image-20220416202926167](https://gitee.com/maolovecoding/picture/raw/master/images/web/webpack/image-20220416202926167.png)
+
+```js
+function dependArray(arr) {
+  // console.log(arr);
+  for (let i = 0; i < arr.length; i++) {
+    const cur = arr[i];
+    // console.log(cur, cur.__ob__);
+    // 数组元素可能不是数组了
+    if (Array.isArray(cur)) {
+      // 收集依赖
+      cur.__ob__.dep.depend();
+      dependArray(cur);
+    }
+  }
+}
+```
+
+把数组元素循环，对于元素还是数组的情况，让该数组自身也收集依赖。
+
+**数据劫持总结：**
+
+1. 默认vue在初始化的时候 会对对象每一个属性都进行劫持，增加dep属性， 当取值的时候会做依赖收集
+
+2. 默认还会对属性值是（对象和数组的本身进行增加dep属性） 进行依赖收集
+
+3. 如果是属性变化 触发属性对应的dep去更新
+
+4. 如果是数组更新，触发数组的本身的dep 进行更新
+
+5. 如果取值的时候是数组还要让数组中的对象类型也进行依赖收集 （递归依赖收集）
+
+6. 如果数组里面放对象，默认对象里的属性是会进行依赖收集的，因为在取值时 会进行JSON.stringify操作
+
+![image-20220416203346466](https://gitee.com/maolovecoding/picture/raw/master/images/web/webpack/image-20220416203346466.png)
