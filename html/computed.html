@@ -35,7 +35,8 @@
             return this.firstName + " " + this.lastName
           },
           set(newVal) {
-            console.log("setter", newVal,this === vm)
+            console.log("setter", newVal, this === vm)
+            // TODO 这种写法 vue中本身就会报错
             // [this.firstName, this.lastName] = newVal.split(" ")
             const [firstName, lastName] = newVal.split(" ")
             this.firstName = firstName

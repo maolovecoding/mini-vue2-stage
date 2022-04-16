@@ -1,0 +1,56 @@
+<!DOCTYPE html>
+<html lang="en">
+
+<head>
+  <meta charset="UTF-8">
+  <meta http-equiv="X-UA-Compatible" content="IE=edge">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Document</title>
+</head>
+
+<body>
+  <div id="app"></div>
+  <script src="../dist/vue.js"></script>
+  <!-- <script src="https://cdn.jsdelivr.net/npm/vue@2.6.14/dist/vue.js"></script> -->
+  <script>
+    // watch的实现
+    const vm = new Vue({
+      data: {
+        firstName: "听雨",
+        lastName: "少年",
+      },
+      watch: {
+        // 就是一个观察者
+        // firstName(newVal, oldVal) {
+        //   console.log("firstName------------",newVal, oldVal)
+        // },
+        // lastName: [
+        //   function (newVal, oldVal) {
+        //     console.log("lastName--------1", newVal, oldVal)
+        //   },
+        //   function (newVal, oldVal) {
+        //     console.log("lastName---------2", newVal, oldVal)
+        //   },
+        // ]
+      },
+      el: "#app",
+      template: `
+        <div id="app">
+            <h2>{{firstName + lastName}}</h2>
+          </div>
+      `
+    })
+    vm.$watch(() => vm.firstName + vm.lastName, (newVal) => {
+      console.log("类似侦听未定义的计算属性了",newVal)
+    })
+    // 是字符串 则不需要再属性前加vm
+    vm.$watch("firstName", (newVal) => {
+      console.log(newVal)
+    })
+    setTimeout(() => {
+      vm.firstName += 1
+    }, 1000)
+  </script>
+</body>
+
+</html>

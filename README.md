@@ -427,3 +427,52 @@ function createComputedGetter(key) {
 ![image-20220416140102371](https://gitee.com/maolovecoding/picture/raw/master/images/web/webpack/image-20220416140102371.png)
 
 ![image-20220416140057050](https://gitee.com/maolovecoding/picture/raw/master/images/web/webpack/image-20220416140057050.png)
+
+### watch的实现
+
+watch选项是一个对象，每个watch的属性作为键，
+
+1. 如果watch的属性直接是一个函数，那么会在属性值发生改变后，给该函数传入两个参数，新值和旧值。
+
+   ```js
+   // 就是一个观察者
+   firstName(newVal, oldVal) {
+       console.log(newVal, oldVal)
+   }
+   ```
+
+2. watch的属性是一个数组，数组元素可以是直接定义的函数，也可以是methods中的字符串函数名
+
+   ```js
+   // 就是一个观察者
+   firstName:[
+       function (newVal, oldVal) {
+       console.log(newVal, oldVal)
+   },
+       function (newVal, oldVal) {
+       console.log(newVal, oldVal)
+   }
+             ]
+   ```
+
+3. watch也可以是一个methods中的字符串函数名
+
+4. vm.$watch，上面三种的定义方式，最终都是转为vm.$watch的形式
+
+   ```js
+   const unwatch  = vm.$watch(()=>vm.firstName, (newVal)=>{},options)// 额外选项options
+   // 取消watch
+   unwatch()
+   
+   vm.$watch(() => vm.firstName + vm.lastName, (newVal) => {
+         console.log("类似侦听未定义的计算属性了",newVal)
+       })
+       // 是字符串 则不需要再属性前加vm
+       vm.$watch("firstName", (newVal) => {
+         console.log(newVal)
+       })
+   ```
+
+   ![image-20220416160038397](https://gitee.com/maolovecoding/picture/raw/master/images/web/webpack/image-20220416160038397.png)
+
+![image-20220416160128191](https://gitee.com/maolovecoding/picture/raw/master/images/web/webpack/image-20220416160128191.png)

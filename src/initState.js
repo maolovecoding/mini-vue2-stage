@@ -27,7 +27,44 @@ function initState(vm) {
   if (opts.computed) {
     initComputed(vm);
   }
+  // watch
+  if (opts.watch) {
+    initWatch(vm);
+  }
 }
+/**
+ * 初始化watch
+ * @param {Vue} vm
+ */
+function initWatch(vm) {
+  const watch = vm.$options.watch;
+  for (const key in watch) {
+    // 字符串 数组 函数
+    const handler = watch[key];
+    if (Array.isArray(handler)) {
+      for (let i = 0; i < handler.length; i++) {
+        createWatch(vm, key, handler[i]);
+      }
+    } else {
+      createWatch(vm, key, handler);
+    }
+  }
+}
+/**
+ *
+ * @param {*} vm
+ * @param {string|Function} exprOrFn 侦听的值
+ * @param {string|Function|object} handler 对象的情况没有考虑
+ */
+// TODO handler 还可以考虑对象的情况 name:{ handler(){} ...}
+function createWatch(vm, exprOrFn, handler) {
+  if (typeof handler === "string") {
+    // name: "handler" -> methods["handler"]
+    handler = vm[handler];
+  }
+  return vm.$watch(exprOrFn, handler);
+}
+
 /**
  * 初始化 data
  * @param {Vue} vm 实例

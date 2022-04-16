@@ -4,7 +4,7 @@ import Dep, { popWatcherTarget, pushWatcherTarget } from "./dep";
  * @Author: 毛毛
  * @Date: 2022-04-15 09:09:45
  * @Last Modified by: 毛毛
- * @Last Modified time: 2022-04-16 12:55:37
+ * @Last Modified time: 2022-04-16 15:57:02
  * 封装视图的渲染逻辑 watcher
  */
 let id = 0;
@@ -25,16 +25,31 @@ class Watcher {
   /**
    *
    * @param {*} vm 组件实例
-   * @param {*} updateComponent 渲染页面的回调函数
+   * @param {Function|string} exprOrFn 渲染页面的回调函数 或者函数 或者字符串(需要把字符串转为函数) name:()=>{}, -> ()=>name,()=>{}
    * @param {boolean|object} options 额外选项 true表示初次渲染 对象是额外的配置
+   * @param {Function} callback watch等的回调函数
    */
-  constructor(vm, updateComponent, options) {
+  constructor(vm, exprOrFn, options, callback) {
+    // console.log(this,"--------------------------------------------")
     if (typeof options === "boolean") this.renderWatcher = true;
     // 记录vm实例
     this.vm = vm;
     this.options = options;
-    // 调用这个函数 意味着可以发生取值操作
-    this.getter = updateComponent;
+    // exprOrFn是字符串 变成函数 name -> ()=>vm.name
+    if (typeof exprOrFn === "string") {
+      this.getter = () => vm[exprOrFn];
+      // TODO 有this问题在切换
+      // this.getter = function () {
+      //   return vm[exprOrFn];
+      // };
+    } else {
+      // 调用这个函数 意味着可以发生取值操作
+      this.getter = exprOrFn;
+    }
+    // 标识用户自定义watch
+    this.user = options?.user;
+    // 收集 watch等的callback
+    this.callback = callback;
     // 收集 dep   watcher -> deps
     this.deps = []; // 在组件卸载的时候，清理响应式数据使用 还有实现响应式数据等都需要使用到
     this.depsId = new Set(); // dep id
@@ -42,9 +57,7 @@ class Watcher {
     this.lazy = options?.lazy;
     // dirty  计算属性使用的
     this.dirty = this.lazy;
-    console.log(this.lazy);
-    // 初渲染
-    this.lazy || this.get();
+    this.value = this.lazy ? void 0 : this.get();
   }
   get() {
     /**
@@ -88,7 +101,7 @@ class Watcher {
     // 是计算属性
     if (this.lazy) {
       // 依赖的值变化 就标识计算属性的值是脏值了
-      return this.dirty = true;
+      return (this.dirty = true);
     }
     // 同步更新视图 改为异步更新视图
     // this.get();
@@ -100,18 +113,22 @@ class Watcher {
    * 实际刷新视图的操作 执行render用到的都是实例最新的属性值
    */
   run() {
-    console.log("run------------------");
-    this.get();
+    // console.log("run------------------");
+    // 可以拿到watch最新的值
+    const newVal = this.get();
+    // watch的回调函数 传入最新的值 和上次还未更新的值
+    this.user && this.callback.call(this.vm, newVal, this.value);
+    this.value = newVal;
   }
-  depend(){
+  depend() {
     // 之前是属性dep记录watcher
     // 这里是watcher记录属性dep
     let i = this.deps.length;
-    while(i--){
+    while (i--) {
       // 让计算属性watcher收集上层watcher
       // curr dep -> prev watcher -> curr dep -> prev watcher
       // dep.depend() -> watcher.addDep(dep) -> dep.addSub(watcher)
-      this.deps[i].depend()
+      this.deps[i].depend();
     }
   }
 }
