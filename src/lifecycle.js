@@ -1,10 +1,11 @@
 import { createElementVNode, createTextVNode } from "./vdom";
+import { patch } from "./vdom/patch";
 import Watcher from "./observe/watcher";
 /*
  * @Author: 毛毛
  * @Date: 2022-04-14 14:10:39
  * @Last Modified by: 毛毛
- * @Last Modified time: 2022-04-15 10:15:07
+ * @Last Modified time: 2022-04-16 22:16:27
  * 组件挂载 生命周期
  * vm._render() 生成虚拟节点 vNode
  * vm._update() 虚拟节点变成真实节点 dom
@@ -23,10 +24,6 @@ export function mountComponent(vm, container) {
     vm._update(vNodes);
   };
   new Watcher(vm, updateComponent, true);
-  // // 1.调用render 产生虚拟节点 vNode
-  // const vNodes = vm._render();
-  // // 2. 根据虚拟dom 产生真实dom
-  // vm._update(vNodes);
   // 3. 挂载到container上
 }
 /**
@@ -79,115 +76,4 @@ export function initLifeCycle(Vue) {
       },
     },
   });
-}
-/**
- * vue的核心流程：
- * 1. 创造响应式数据
- * 2. 模板编译 生成 ast
- * 3. ast 转为render函数 后续每次数据更新 只执行render函数(不需要再次进行ast的转换)
- * 4. render函数执行 生成 vNode节点（会使用到响应式数据）
- * 5. 根据vNode 生成 真实dom 渲染页面
- * 6. 数据更新 重新执行render
- */
-/**
- * 更新 | 初渲染时 第一个节点的值是真实元素
- * @param {*} oldVNode 旧vnode
- * @param {*} vnode 最新的vnode
- */
-function patch(oldVNode, vnode) {
-  const isRealElement = oldVNode.nodeType;
-  // 真实元素
-  if (isRealElement) {
-    const elm = oldVNode;
-    // 获取父节点 1. 元素节点 2. 文档节点 3. 文档碎片节点
-    const parentElm = elm.parentNode;
-    // console.log(parentElm)
-    const newEle = createEle(vnode);
-    // 插入新dom 移除父节点上的老dom节点
-    insertBefore(parentElm, newEle, elm.nextSibling);
-    removeChild(parentElm, elm);
-    // console.log(newEle)
-    return newEle;
-  }
-}
-
-function createEle(vnode) {
-  const { tag, props, children, text } = vnode;
-  if (typeof tag === "string") {
-    // 标签 div h2
-    // 将虚拟节点和真实节点想管理 根据虚拟节点可以找到真实节点 方便修改属性
-    vnode.el = createElement(tag);
-    // 更新属性
-    patchProps(vnode.el, props);
-    children.forEach((child) => {
-      appendChild(vnode.el, createEle(child));
-    });
-  } else if (typeof tag === "object") {
-    // 组件
-  } else {
-    // 创建文本节点
-    vnode.el = createTextNode(text);
-  }
-  return vnode.el;
-}
-/**
- * 更新属性到dom节点上
- * @param {*} el
- * @param {*} props
- */
-function patchProps(el, props) {
-  for (const key in props) {
-    if (key === "style") {
-      Object.keys(props[key]).forEach((k) => (el.style[k] = props["style"][k]));
-    } else {
-      setAttribute(el, key, props[key]);
-    }
-  }
-}
-
-function createElement(tag, type = "browser") {
-  switch (type.toLowerCase()) {
-    case "browser":
-      return document.createElement(tag);
-  }
-}
-
-function createTextNode(tag, type = "browser") {
-  switch (type.toLowerCase()) {
-    case "browser":
-      return document.createTextNode(tag);
-  }
-}
-
-function appendChild(parent, child, type = "browser") {
-  switch (type.toLowerCase()) {
-    case "browser":
-      parent.appendChild(child);
-      break;
-  }
-}
-
-function setAttribute(el, key, value, type = "browser") {
-  switch (type.toLowerCase()) {
-    case "browser":
-      el.setAttribute(key, value);
-      break;
-  }
-}
-
-function removeChild(parent, child, type = "browser") {
-  switch (type.toLowerCase()) {
-    case "browser":
-      parent.removeChild(child);
-      break;
-  }
-}
-
-function insertBefore(parent, child, prevChild, type = "browser") {
-  switch (type.toLowerCase()) {
-    case "browser":
-      // document.insertBefore
-      parent.insertBefore(child, prevChild);
-      break;
-  }
 }

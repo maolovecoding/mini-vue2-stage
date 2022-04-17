@@ -2,20 +2,20 @@
  * @Author: 毛毛
  * @Date: 2022-04-14 14:35:48
  * @Last Modified by: 毛毛
- * @Last Modified time: 2022-04-15 08:45:32
+ * @Last Modified time: 2022-04-17 09:46:12
  * 虚拟dom 需要的方法
  */
 /**
- * 生成虚拟dom 
+ * 生成虚拟dom
  * 虚拟dom是和ast不一样的 -> ast是语法层面的转换，他描述的是语法本身（可以描述 js css html等等）
  * 我们的虚拟dom  是描述dom元素，可以增加自定义属性
- * @param {*} vm 
- * @param {*} tag 
- * @param {*} key 
- * @param {*} props 
- * @param {*} children 
- * @param {*} text 
- * @returns 
+ * @param {*} vm
+ * @param {*} tag
+ * @param {*} key
+ * @param {*} props
+ * @param {*} children
+ * @param {*} text
+ * @returns
  */
 function vnode(vm, tag, key, props, children, text) {
   return {
@@ -37,10 +37,20 @@ function createElementVNode(vm, tag, data = {}, ...children) {
 function createTextVNode(vm, text) {
   return vnode(vm, undefined, undefined, undefined, undefined, text);
 }
+/**
+ *
+ * @param {*} n1
+ * @param {*} n2
+ * @returns {boolean} 是否是同一个vnode
+ */
+function isSameVNode(n1, n2) {
+  return n1.tag === n2.tag && n1.key === n2.key;
+}
 
 export {
   createElementVNode,
   createTextVNode as h,
   createTextVNode,
   createTextVNode as _c,
+  isSameVNode,
 };

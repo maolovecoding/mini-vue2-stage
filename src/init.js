@@ -2,7 +2,7 @@
  * @Author: 毛毛
  * @Date: 2022-04-12 22:48:39
  * @Last Modified by: 毛毛
- * @Last Modified time: 2022-04-16 10:31:11
+ * @Last Modified time: 2022-04-16 22:06:35
  */
 import { initState } from "./initState";
 import { compileToFunction } from "./compiler";
@@ -21,7 +21,7 @@ export function initMixin(Vue) {
     // 合并 Vue.options 和 传入的配置项
     // TODO 目前还只是可以合并生命周期和普通属性等，对于 data 这种选项还需要特殊的合并处理
     vm.$options = mergeOptions(this.constructor.options, options); // vue认为 $xxx 就是表示vue的属性
-    console.log(vm.$options);
+    // console.log(vm.$options);
     // 执行初始化之前，执行 beforeCreate 的钩子
     callHook(vm, "beforeCreate");
     // 初始化状态

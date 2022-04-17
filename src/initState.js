@@ -1,6 +1,6 @@
 import { isFunction } from "./utils";
 import { observe } from "./observe";
-import Watcher from "./observe/watcher";
+import Watcher, { nextTick } from "./observe/watcher";
 import Dep from "./observe/dep";
 function proxy(vm, target, key) {
   Object.defineProperty(vm, key, {
@@ -149,5 +149,35 @@ function createComputedGetter(key) {
     }
     return watcher.value;
   };
+}
+/**
+ *
+ * 实现 $nextTick $watch
+ * @export
+ * @param {Vue} Vue
+ */
+export function initStateMixin(Vue) {
+  /**
+   * $nextTick实现
+   */
+  Vue.prototype.$nextTick = nextTick;
+  /**
+   * 实现 $watch
+   */
+  // watch的底层实现 全是通过$watch
+  Object.defineProperty(Vue.prototype, "$watch", {
+    /**
+     * watch的实现 也是使用观察者模式
+     * @param {Function|string} exprOrFn 监控的值
+     * @param {*} callback 回调函数
+     * @param {*} options 选项
+     */
+    value(exprOrFn, callback, options = {}) {
+      // console.log(exprOrFn, callback);
+      // 创建观察者 user属性 表名这是用户自己定义的watch
+      // 侦听的属性值发生改变 直接执行callback即可
+      new Watcher(this, exprOrFn, { user: true, ...options }, callback);
+    },
+  });
 }
 export { initState };

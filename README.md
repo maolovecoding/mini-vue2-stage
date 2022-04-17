@@ -631,3 +631,381 @@ function dependArray(arr) {
 6. 如果数组里面放对象，默认对象里的属性是会进行依赖收集的，因为在取值时 会进行JSON.stringify操作
 
 ![image-20220416203346466](https://gitee.com/maolovecoding/picture/raw/master/images/web/webpack/image-20220416203346466.png)
+
+## diff算法
+
+diff算法：
+
+在之前的更新中，每次数据更新，在更新视图时，都是完全产生新的虚拟节点，通过新的虚拟节点生成真实节点，用新生成的真实节点替换所有的老节点。
+
+这种方法在页面元素很少的情况下性能销毁倒是无所谓，但是在页面元素特别多情况下，很明显是消耗很大性能的。哪怕我只是修改了一个dom的文本内容，也都需要重新生成一遍所有节点。（因为现在只有一个组件）
+
+第一次渲染的时候，我们会产生虚拟节点，第二次更新我们也会调用render方法产生新的虚拟节点，我们需要对比两次的vnode，找到需要更新的部分进行更新。
+
+#### 没有key
+
+对于没有key的情况下：vue会在两个vnode的tag相同的时候，就任务是同一个节点。这种情况下可能会出现错误复用。
+
+```html
+<ul>
+    <li>1</li>
+    <li>2</li>
+    <li>3</li>
+</ul>
+<!--更新后-->
+<ul>
+    <li>2</li>
+    <li>3</li>
+    <li>1</li>
+</ul>
+```
+
+此时vue只会让第一个节点和第一个节点比较，第二个节点和第二个节点比较。
+
+### 有key
+
+vue在进行diff的时候（新旧虚拟dom都有子节点数组），维护了一个双指针，来进行比较。
+
+```js
+// 我们为了比较两个儿子的时候，提高比较的性能（速度）
+  /**
+   * 1. 我们操作列表 经常会有 push pop shift unshift sort reverse 等方法 针对这些情况可以做一些优化
+   * 2. vue2中采用双指针的方法 比较两个节点
+   */
+  let oldStartIndex = 0,
+    oldEndIndex = oldChildren.length - 1,
+    newStartIndex = 0,
+    newEndIndex = newChildren.length - 1,
+    oldStartVnode = oldChildren[oldStartIndex],
+    oldEndVnode = oldChildren[oldEndIndex],
+    newStartVnode = newChildren[newStartIndex],
+    newEndVnode = newChildren[newEndIndex];
+```
+
+#### old head -> new head
+
+新旧节点都进行头指针指向的头结点比较。如果两个子节点相同，则会进行复用。
+
+```html
+<ul>
+    <li key="a">1</li>
+    <li key="b">2</li>
+    <li key="c">3</li>
+</ul>
+<!--更新后-->
+<ul>
+    <li key="a">1</li>
+    <li key="b">2</li>
+    <li key="d">4</li>
+</ul>
+```
+
+此时vue会复用前两个节点（比对后发现前两个节点都不需要更改），只需要在原来的dom元素上追加一个子元素而已。
+
+#### old tail -> new tail
+
+在头结点进行比较时，发现不是一个节点，则再次比较两个children的尾节点。
+
+```html
+<ul>
+    <li key="a">1</li>
+    <li key="b">2</li>
+    <li key="c">3</li>
+</ul>
+<!--更新后-->
+<ul>
+    <li key="b">2</li>
+    <li key="c">3</li>
+</ul>
+```
+
+在头结点不同，尾节点相同的情况下，会一直比较尾节点，发现相同则复用，到下一轮循环发现头节点还是不一致，继续比对尾节点。此时页面渲染也只是会删除一个旧的dom。
+
+#### 交叉比对
+
+##### old head -> new tail
+
+在头结点和尾节点都不同的情况下，去比对旧vnode的头结点和新vnode的尾节点。
+
+```html
+<ul>
+    <li key="a">1</li>
+    <li key="b">2</li>
+    <li key="c">3</li>
+</ul>
+<!--更新后-->
+<ul>
+    <li key="b">2</li>
+    <li key="c">3</li>
+    <li key="a">1</li>
+</ul>
+```
+
+比较旧vnode的头节点和新vnode的尾节点发现一样，则进行复用，只需要移动dom元素的位置到其应该在的位置即可。
+
+此时会复用这三个节点，只是会把第一个li移动到最后。
+
+##### old tail -> new head
+
+比较旧vnode的尾节点和新vnode的头结点，一样则也会复用节点。
+
+```html
+<ul>
+    <li key="a">1</li>
+    <li key="b">2</li>
+    <li key="c">3</li>
+</ul>
+<!--更新后-->
+<ul>
+    <li key="c">3</li>
+    <li key="b">2</li>
+    <li key="a">1</li>
+</ul>
+```
+
+此时也只是移动三个节点中key为a和c这两个dom元素的位置。
+
+#### 乱序比较
+
+当前面四种情况都不符合，恭喜了，已经没办法优化了，或者说再想办法优化并不是那么划算了。因为这个时候我们已经需要拿新vnode中的每个节点，去和旧vnode中的每个节点依次比对，此时的时间复杂度已经是O(N^2)了。算是很高的复杂度了。
+
+先根据旧节点vnode集合生成一个key和节点所在索引的map。
+
+```js
+/**
+ * 生成映射表
+ * @param {*} children
+ * @returns
+ */
+function makeIndexByKey(children) {
+  const map = {};
+  children.forEach((child, index) => (map[child.key] = index));
+  return map;
+}
+```
+
+我们让新vnode的每个节点，都拿出key去这个map中找旧节点的索引，如果找到则可以复用，找不到则需要创建新的dom元素然后插入到指定位置；如果找到了，则移动这个节点到指定位置，并且标识当前节点已经使用。
+
+```js
+const map = makeIndexByKey(oldChildren);
+// ...
+// 乱序比对 a b c ->  d e a b f
+      /**
+       * 根据老的列表做一个映射关系，用新的去找，找到则移动节点，找不到就新增节点，最后移除多余节点
+       */
+      // 如有值：则是需要移动的节点的索引
+let moveIndex = map[newStartVnode.key];
+if (moveIndex !== undefined) {
+    const moveVnode = oldChildren[moveIndex];
+    // 移动节点到头指针所在节点的前面
+    insertBefore(el, moveVnode, oldStartVnode.el);
+    // 标识这个节点已经移动过
+    oldChildren[moveIndex] = undefined;
+    patchVnode(moveVnode, newStartVnode);
+} else {
+    // 找不到 这是新节点 创建 然后插入进去 完事
+    insertBefore(el, createEle(newStartVnode), oldStartVnode.el);
+}
+newStartVnode = newChildren[++newStartIndex];
+```
+
+此时，就完成了所有diff算法的步骤。
+
+```html
+<ul>
+  <li key="a">1</li>
+  <li key="b">2</li>
+  <li key="c">3</li>
+  <li key="d">4</li>
+</ul>
+
+<ul>
+<li key="g">6</li>
+<li key="f">5</li>
+<li key="h">7</li>
+<li key="a">1</li>
+<li key="c">3</li>
+<li key="b">2</li>
+</ul>
+```
+
+这种复杂的也能实现dom复用了。
+
+**此时对于key来说，是不能出现重复的。否则会报错。**
+
+**核心代码：**大概一百行左右吧。
+
+```js
+function patchVnode(oldVNode, vnode) {
+  /**
+   * 1. 两个节点不是同一个节点，直接删除老的换上新的（不在继续对比属性等）
+   * 2. 两个节点是同一个节点（tag，key都一致），比较两个节点的属性是否有差异
+   * 复用老节点，将差异的属性更新
+   */
+  const el = oldVNode.el;
+  // 不是同一个节点
+  if (!isSameVNode(oldVNode, vnode)) {
+    // tag && key
+    // 直接替换
+    const newEl = createEle(vnode);
+    replaceChild(el.parentNode, newEl, el);
+    return newEl;
+  }
+  // 文本的情况 文本我们期望比较一下文本的内容
+  vnode.el = el;
+  if (!oldVNode.tag) {
+    if (oldVNode.text !== vnode.text) {
+      textContent(el, vnode.text);
+    }
+  }
+  // 是标签 我们需要比对标签的属性
+  patchProps(el, oldVNode.props, vnode.props);
+  // 有子节点
+  /**
+   * 1.旧节点有子节点 新节点没有
+   * 2. 都有子节点
+   * 3. 旧节点没有子节点，新节点有
+   */
+  const oldChildren = oldVNode.children || [];
+  const newChildren = vnode.children || [];
+  const oldLen = oldChildren.length,
+    newLen = newChildren.length;
+  if (oldLen && newLen) {
+    // 完整的diff 都有子节点
+    updateChildren(el, oldChildren, newChildren);
+  } else if (newLen) {
+    // 只有新节点有子节点 挂载
+    mountChildren(el, newChildren);
+  } else if (oldLen) {
+    // 只有旧节点有子节点 全部卸载
+    unmountChildren(el, oldChildren);
+  }
+  return el;
+}
+/**
+ * 对比更新子节点
+ * @param {*} el
+ * @param {*} oldChildren
+ * @param {*} newChildren
+ */
+// TODO 对于出现重复的key，有bug，还未修复。。。。
+function updateChildren(el, oldChildren, newChildren) {
+  // 我们为了比较两个儿子的时候，提高比较的性能（速度）
+  /**
+   * 1. 我们操作列表 经常会有 push pop shift unshift sort reverse 等方法 针对这些情况可以做一些优化
+   * 2. vue2中采用双指针的方法 比较两个节点
+   */
+  let oldStartIndex = 0,
+    oldEndIndex = oldChildren.length - 1,
+    newStartIndex = 0,
+    newEndIndex = newChildren.length - 1,
+    oldStartVnode = oldChildren[oldStartIndex],
+    oldEndVnode = oldChildren[oldEndIndex],
+    newStartVnode = newChildren[newStartIndex],
+    newEndVnode = newChildren[newEndIndex];
+  // 乱序比较时 使用的映射表 {key:"节点在数组中的索引"} -> {a:0,b:1,...}
+  const map = makeIndexByKey(oldChildren);
+  // 循环比较 只要头指针不超过尾指针 就一直比较
+  while (oldStartIndex <= oldEndIndex && newStartIndex <= newEndIndex) {
+    // 排除 undefined 的情况
+    if (!oldStartVnode) oldStartVnode = oldChildren[++oldStartIndex];
+    if (!oldEndVnode) oldEndVnode = oldChildren[--oldStartIndex];
+    /**
+     * 1. old head -> new head
+     * 2. old tail -> new tail
+     * 3. old head -> new tail
+     * 4. old tail -> new head
+     */
+    // 进行节点比较
+    else if (isSameVNode(oldStartVnode, newStartVnode)) {
+      // 头结点相同
+      // 从头指针开始比较两个节点
+      // 相同节点 递归比较子节点
+      patchVnode(oldStartVnode, newStartVnode);
+      oldStartVnode = oldChildren[++oldStartIndex];
+      newStartVnode = newChildren[++newStartIndex];
+    } else if (isSameVNode(oldEndVnode, newEndVnode)) {
+      // 尾节点相同
+      // 从尾指针开始比较两个节点
+      patchVnode(oldEndVnode, newEndVnode);
+      oldEndVnode = oldChildren[--oldEndIndex];
+      newEndVnode = newChildren[--newEndIndex];
+    }
+    // 交叉比对 两次头尾比较
+    //  a b c -> c a b 把尾节点移动到头结点之前
+    else if (isSameVNode(oldEndVnode, newStartVnode)) {
+      patchVnode(oldEndVnode, newStartVnode);
+      console.log(oldEndVnode, newStartVnode);
+      // 将老节点的尾节点插入到老节点头结点（头结点会变化）的前面去
+      insertBefore(el, oldEndVnode.el, oldStartVnode.el);
+      oldEndVnode = oldChildren[--oldEndIndex];
+      newStartVnode = newChildren[++newStartIndex];
+    }
+    // a b c d -> d c b a 头结点移动到尾节点后面
+    else if (isSameVNode(oldStartVnode, newEndVnode)) {
+      patchVnode(oldStartVnode, newEndVnode);
+      insertBefore(el, oldStartVnode.el, oldEndVnode.el.nextSibling);
+      oldStartVnode = oldChildren[++oldStartIndex];
+      newEndVnode = newChildren[--newEndIndex];
+    } else {
+      // 乱序比对 a b c ->  d e a b f
+      /**
+       * 根据老的列表做一个映射关系，用新的去找，找到则移动节点，找不到就新增节点，最后移除多余节点
+       */
+      // 如有值：则是需要移动的节点的索引
+      let moveIndex = map[newStartVnode.key];
+      if (moveIndex !== undefined) {
+        const moveVnode = oldChildren[moveIndex];
+        // 移动节点到头指针所在节点的前面
+        insertBefore(el, moveVnode, oldStartVnode.el);
+        // 标识这个节点已经移动过
+        oldChildren[moveIndex] = undefined;
+        patchVnode(moveVnode, newStartVnode);
+      } else {
+        // 找不到 这是新节点 创建 然后插入进去 完事
+        insertBefore(el, createEle(newStartVnode), oldStartVnode.el);
+      }
+      newStartVnode = newChildren[++newStartIndex];
+    }
+  }
+  // 新节点的比旧节点多 挂载
+  if (newStartIndex <= newEndIndex) {
+    for (let i = newStartIndex; i <= newEndIndex; i++) {
+      // 这里可能是向后追加 也可能是向前插入
+      // 判断当前的虚拟dom后面是否还有节点 有节点则是插入到该节点前面
+      const anchor = newChildren[newEndIndex + 1]?.el;
+      // 注意：插入方法在 要插入的那个节点不存在的情况下，自动变为追加方法 appendChild
+      insertBefore(el, createEle(newChildren[i]), anchor);
+    }
+  }
+  // 旧节点比新节点多 卸载
+  if (oldStartIndex <= oldEndIndex) {
+    for (let i = oldStartIndex; i <= oldEndIndex; i++) {
+      // 乱序比对时 可能已经标记为 undefined了
+      oldChildren[i] && removeChild(el, oldChildren[i].el);
+    }
+  }
+}
+/**
+ * 生成映射表
+ * @param {*} children
+ * @returns
+ */
+function makeIndexByKey(children) {
+  const map = {};
+  children.forEach((child, index) => (map[child.key] = index));
+  return map;
+}
+```
+
+### 为什么需要key
+
+直接将新节点替换老节点，很消耗性能，所以我们不直接替换，而是在比较两个节点之间的区别之后在替换，这就是diff算法。
+
+diff算是 是一个平级比较的过程，父亲和父亲节点比对 儿子和儿子节点比对。
+
+我们在比较两个虚拟dom是否一致的时候，是根据虚拟dom的标签名和key值来进行比较的。如果没有key，相当于只要标签名一致，我我们就认为这两个虚拟节点是一样的，然后判断其子元素...
+
+当我们在遍历动态列表，给其增加key的时候，要尽量避免使用索引作为key，因为两次的虚拟dom的key都是从0开始的，可能会发生错误复用。
+
+**注意：在vue和react中，我们说的key要唯一，实际上是在同级的vnode情况下（也就是兄弟节点这些），并不意味着key需要全局唯一。**
