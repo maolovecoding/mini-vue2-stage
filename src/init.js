@@ -2,7 +2,7 @@
  * @Author: 毛毛
  * @Date: 2022-04-12 22:48:39
  * @Last Modified by: 毛毛
- * @Last Modified time: 2022-04-16 22:06:35
+ * @Last Modified time: 2022-04-18 13:16:18
  */
 import { initState } from "./initState";
 import { compileToFunction } from "./compiler";
@@ -20,6 +20,7 @@ export function initMixin(Vue) {
     const vm = this;
     // 合并 Vue.options 和 传入的配置项
     // TODO 目前还只是可以合并生命周期和普通属性等，对于 data 这种选项还需要特殊的合并处理
+    // 这种使用this获取其构造函数上的静态属性options，因为构造函数不一定直接是 Vue，也可以是Vue的子类（组件）
     vm.$options = mergeOptions(this.constructor.options, options); // vue认为 $xxx 就是表示vue的属性
     // console.log(vm.$options);
     // 执行初始化之前，执行 beforeCreate 的钩子
@@ -43,13 +44,19 @@ export function initMixin(Vue) {
     if (!ops.render) {
       // 没有template选项 但是写了el 直接用el作为模板
       if (!ops.template && el) template = el.outerHTML;
-      else if (el) template = ops.template;
+      else template = ops.template; // 没有el 一般是组件的挂载
     }
     // 有template 直接用模板
     if (template) {
+      console.log("------------------", /^[\.#a-zA-Z_]/i.test(template));
+      if (/^[\.#a-zA-Z_]/i.test(template)) {
+        // 模板标签
+        template = document.querySelector(template).innerHTML;
+      }
       // TODO 去除开头和结尾的空白符 m是忽略换行 进行多行匹配
       // template = template.trim();
       template = template.replace(/^\s+|\s+$/gm, "");
+
       // 编译模板 生成 render函数
       const render = compileToFunction(template);
       ops.render = render;

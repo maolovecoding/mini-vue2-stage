@@ -13,22 +13,26 @@
   <script src="../dist/vue.js"></script>
   <!-- <script src="https://cdn.jsdelivr.net/npm/vue@2.6.14/dist/vue.js"></script> -->
   <script>
-    // 数组数据响应式更新原理
-    // const vm = new Vue({
-    //   data: {
-    //     arr: ["海贼王", "火影忍者", "名侦探柯南"],
-    //   },
-    //   el: "#app",
-    //   // 模板编译为虚拟dom的时候，从arr对象取值了 _v(_s(变量)) JSON.stringify() 
-    //   // 所以对象会收集依赖
-    //   template: `
-    //     <div id="app">
-    //         <ul>
-    //             <li>{{arr}}</li>
-    //           </ul>
-    //       </div>
-    //   `
-    // })
+    const vm = new Vue({
+      data: {
+        arr: ["海贼王", "火影忍者", { name: "名侦探柯南" }],
+      },
+      el: "#app",
+      // 模板编译为虚拟dom的时候，从arr对象取值了 _v(_s(变量)) JSON.stringify() 
+      // 所以对象会收集依赖
+      template: `
+        <div id="app">
+            <ul>
+                <li key="a">{{arr[0]}}</li>
+                <li key="b">{{arr[1]}}</li>
+                <li key="c">{{arr[2]["name"]}}</li>
+              </ul>
+          </div>
+      `
+    });
+    setTimeout(() => {
+      vm.arr[2].name += 2
+    }, 1000);
   </script>
 </body>
 

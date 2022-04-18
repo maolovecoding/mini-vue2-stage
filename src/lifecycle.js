@@ -5,7 +5,7 @@ import Watcher from "./observe/watcher";
  * @Author: 毛毛
  * @Date: 2022-04-14 14:10:39
  * @Last Modified by: 毛毛
- * @Last Modified time: 2022-04-16 22:16:27
+ * @Last Modified time: 2022-04-18 14:02:59
  * 组件挂载 生命周期
  * vm._render() 生成虚拟节点 vNode
  * vm._update() 虚拟节点变成真实节点 dom
@@ -24,7 +24,7 @@ export function mountComponent(vm, container) {
     vm._update(vNodes);
   };
   new Watcher(vm, updateComponent, true);
-  // 3. 挂载到container上
+  // 3. 挂载到container上 _update中实现
 }
 /**
  * 扩展原型方法
@@ -47,11 +47,20 @@ export function initLifeCycle(Vue) {
        */
       value: function _update(vnode) {
         const vm = this;
-        // 挂载的容器
+        // 挂载的容器 
         const el = vm.$el;
-        // console.log(el);
-        // patch 更新 + 初始化
-        vm.$el = patch(el, vnode);
+        // 拿到上次的vnode
+        const prevVnode = vm._vnode;
+        // 记录每次产生的 vnode
+        vm._vnode = vnode;
+        if (prevVnode) {
+          // 更新
+          vm.$el = patch(prevVnode, vnode);
+        } else {
+          // 初渲染
+          // patch 更新 + 初始化 + 组件的创建（el为null）
+          vm.$el = patch(el, vnode);
+        }
         // console.log("_update----------------->", vnode);
       },
     },

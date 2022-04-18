@@ -16,6 +16,9 @@ import { isSameVNode } from ".";
  * @param {*} vnode 最新的vnode
  */
 function patch(oldVNode, vnode) {
+  // 组件的挂载 vm.$el 对应的就是组件的渲染结果了
+  if (!oldVNode) return createEle(vnode);
+
   const isRealElement = oldVNode.nodeType;
   // 真实元素
   if (isRealElement) {
@@ -33,7 +36,11 @@ function patch(oldVNode, vnode) {
   // ------------------- 更新节点 --------------------
   return patchVnode(oldVNode, vnode); // 返回更新后的 dom元素
 }
-
+/**
+ * 直接将新节点替换老节点，很消耗性能
+ * 所以我们不直接替换，而是在比较两个节点之间的区别之后在替换，这就是diff算法
+ * diff算是 是一个平级比较的过程，父亲和父亲节点比对 儿子和儿子节点比对
+ */
 function patchVnode(oldVNode, vnode) {
   /**
    * 1. 两个节点不是同一个节点，直接删除老的换上新的（不在继续对比属性等）
@@ -221,12 +228,17 @@ function mountChildren(el, children) {
 function createEle(vnode) {
   const { tag, props, children, text } = vnode;
   if (typeof tag === "string") {
+    // 区分真实节点和组件节点
+    if (createComponent(vnode)) {
+      return vnode.componentInstance.$el;
+    }
     // 标签 div h2
     // 将虚拟节点和真实节点想管理 根据虚拟节点可以找到真实节点 方便修改属性
     vnode.el = createElement(tag);
     // 更新属性
     patchProps(vnode.el, {}, props);
     children.forEach((child) => {
+      // 如果孩子是组件 会实例化组件 并且插入到父组件内部子节点的最后
       appendChild(vnode.el, createEle(child));
     });
   } else if (typeof tag === "object") {
@@ -267,6 +279,12 @@ function patchProps(el, oldProps, props) {
       setAttribute(el, key, props[key]);
     }
   }
+}
+
+function createComponent(vnode) {
+  // init 初始化组件
+  vnode.props?.hook?.init(vnode);
+  return vnode.componentInstance;
 }
 
 function createElement(tag, type = "browser") {

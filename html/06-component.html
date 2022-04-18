@@ -1,0 +1,69 @@
+<!DOCTYPE html>
+<html lang="en">
+
+<head>
+  <meta charset="UTF-8">
+  <meta http-equiv="X-UA-Compatible" content="IE=edge">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Document</title>
+</head>
+
+<body>
+  <div id="app"></div>
+  <template id="tmp">
+    <div id="app">
+      <ul>
+        <li key="a">{{arr[0]}}</li>
+        <li key="b">{{arr[1]}}</li>
+        <li key="c">{{arr[2]["name"]}}</li>
+      </ul>
+    </div>
+  </template>
+  <script src="../dist/vue.js"></script>
+  <!-- <script src="https://cdn.jsdelivr.net/npm/vue@2.6.14/dist/vue.js"></script> -->
+  <script>
+    // 创建组件 使用 Vue.component
+    /**
+     * 流程：
+     */
+    // 1. 全局组件
+    // Vue.component()
+    // 根组件
+    // const vm = new Vue({
+    //   data: {
+    //     arr: ["海贼王", "火影忍者", { name: "名侦探柯南" }],
+    //   },
+    //   el: "#app",
+    //   template: `#tmp`,
+    //   // 局部组件
+    //   // components:{}
+    // });
+    // setTimeout(() => {
+    //   vm.arr[2].name += 2
+    // }, 1000);
+
+    const Cmp = Vue.extend({
+      template: `<div>
+          <h2>你好!{{name}}</h2>
+          <btn/>
+        </div>`,
+      components: {
+        // btn: {
+        //   template: `<button>局部button</button>`
+        // }
+      }
+    });
+    Vue.component("btn", {
+      template: `<button>全局button</button>`
+    })
+    const cmp = new Cmp({
+      data: {
+        name: "张三"
+      }
+    })
+    cmp.$mount("#app")
+    console.log(cmp)
+  </script>
+</body>
+
+</html>

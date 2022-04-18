@@ -2,7 +2,7 @@
  * @Author: 毛毛
  * @Date: 2022-04-15 20:43:57
  * @Last Modified by: 毛毛
- * @Last Modified time: 2022-04-15 21:57:13
+ * @Last Modified time: 2022-04-17 23:46:24
  * 合并对象的方法
  */
 import { strategy } from "./strategy";
